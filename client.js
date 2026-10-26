@@ -109,6 +109,7 @@ window.__ModuleLoader__.load({
 .sb-close:hover{color:var(--dsw-alias-label-primary)}
 .sb-rows{overflow-y:auto;padding:2px 0}
 .sb-row{padding:8px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);cursor:pointer}
+.sb-row-active{background:var(--dsw-alias-bg-layer-2);box-shadow:inset 2px 0 0 #4c8dff}
 .sb-row:last-child{border-bottom:0}
 .sb-row:hover{background:var(--dsw-alias-bg-layer-2)}
 .sb-row-head{display:flex;align-items:center;gap:8px;min-width:0}
@@ -142,9 +143,9 @@ window.__ModuleLoader__.load({
 .sb-quota{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11px;white-space:nowrap}
 `;
 
-    function BoardRow({ row, t, onDismiss, onOpen }) {
+    function BoardRow({ row, t, onDismiss, onOpen, active }) {
       return h('div', {
-        className: 'sb-row',
+        className: 'sb-row' + (active ? ' sb-row-active' : ''),
         key: row.id,
         onClick: () => onOpen?.(row.id),
       },
@@ -309,6 +310,7 @@ window.__ModuleLoader__.load({
 
       // Visiting a session in the main view lifts its dismissal too: switching
       // to a workspace/conversation counts as renewed interest in it.
+      const [currentId, setCurrentId] = React.useState('');
       React.useEffect(() => {
         const store = sessionsSvc?.list;
         if (!store?.getSnapshot) return undefined;
@@ -316,7 +318,8 @@ window.__ModuleLoader__.load({
           try {
             const entry = Object.entries(store.getSnapshot()?.byId ?? {})
               .find(([, row]) => (row?.retainedBy?.mainView ?? 0) > 0);
-            const id = entry?.[0];
+            const id = entry?.[0] ?? '';
+            setCurrentId(prev => (prev === id ? prev : id));
             if (id) setDismissed(prev => {
               if (!prev.has(id)) return prev;
               const n = new Set(prev);
@@ -365,6 +368,7 @@ window.__ModuleLoader__.load({
               shown.length === 0 && !data.error ? h('div', { className: 'sb-empty' }, t('No active sessions')) : null,
               shown.map(row => h(BoardRow, {
                 row, t, key: row.id, onDismiss: dismiss,
+                active: row.id === currentId,
                 onOpen: id => { openSessionNav?.(id); setOpen(false); },
               })),
               data.hidden > 0 ? h('div', { className: 'sb-hidden' }, t('hidden', { n: data.hidden })) : null,

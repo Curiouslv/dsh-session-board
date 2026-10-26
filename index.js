@@ -65,7 +65,10 @@ export function apply(ctx) {
   const titles = new Map();
   /** sessionId -> preview of the first human prompt, used when the session has no title. */
   const firstPrompt = new Map();
+  /** sessionId -> when the first-prompt seed last ran (retries on new activity). */
+  const firstPromptAt = new Map();
   let titlesInFlight = false;
+  let lastEmptyTitlesCheck = 0;
   let promptQueue = Promise.resolve();
   /** Rolling 5h request/token window for the volc coding plan. */
   const volcWindow = [];
@@ -253,6 +256,7 @@ export function apply(ctx) {
   }
 
   function queueFirstPrompt(sessionId) {
+    firstPromptAt.set(String(sessionId), Date.now());
     promptQueue = promptQueue.then(() => seedFirstPrompt(sessionId)).catch(() => {});
   }
 
@@ -401,11 +405,23 @@ export function apply(ctx) {
       });
     }
 
-    // Resolve names in the background: titles are one batch read, first
-    // prompts are read once per session and cached for the process lifetime.
+    // Resolve names in the background. Names can appear LATE — a title event
+    // shows up after the first exchange, a brand-new session's log may still be
+    // empty on the first seed — so empty results are retried on new activity.
     const missingTitles = rows.map(row => row.id).filter(id => !titles.has(id));
     if (!titlesInFlight && missingTitles.length > 0) refreshTitles(missingTitles);
-    for (const row of rows) if (titles.get(row.id) === '' && !firstPrompt.has(row.id)) queueFirstPrompt(row.id);
+    const emptyTitles = rows.filter(r => titles.get(r.id) === '').map(r => r.id);
+    if (!titlesInFlight && emptyTitles.length > 0 && now - lastEmptyTitlesCheck > 60_000) {
+      lastEmptyTitlesCheck = now;
+      refreshTitles(emptyTitles);
+    }
+    for (const row of rows) {
+      if (titles.get(row.id) !== '') continue;   // has a real title
+      if (firstPrompt.get(row.id)) continue;     // already have a prompt
+      const lastTry = firstPromptAt.get(row.id) ?? 0;
+      if (lastTry && (row.updatedAt ?? 0) <= lastTry) continue; // inactive since last try
+      queueFirstPrompt(row.id);
+    }
 
     const ws = new Map();
     for (const w of safe(() => ctx.workspaceRegistry.list(), []) ?? []) {
@@ -453,6 +469,7 @@ export function apply(ctx) {
     for (const id of activity.keys()) if (!seen.has(id)) activity.delete(id);
     for (const id of titles.keys()) if (!seen.has(id)) titles.delete(id);
     for (const id of firstPrompt.keys()) if (!seen.has(id)) firstPrompt.delete(id);
+    for (const id of firstPromptAt.keys()) if (!seen.has(id)) firstPromptAt.delete(id);
     for (const id of routeOf.keys()) if (!seen.has(id)) routeOf.delete(id);
     for (const id of cumulative.keys()) if (!seen.has(id)) cumulative.delete(id);
 
