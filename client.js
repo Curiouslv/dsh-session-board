@@ -1,7 +1,7 @@
 // Client half: a floating orb (bottom-right) that expands into the session board.
 // Data comes from this package's Host half via POST api/session-board.
 window.__ModuleLoader__.load({
-  id: '@local/session-board',
+  id: 'dsh-session-board',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
