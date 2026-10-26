@@ -32,7 +32,6 @@ const MODEL_CONTEXT = {
 };
 const USAGE_DIR = join(homedir(), '.dsh', 'dsh-usage');
 const SNAPSHOTS_FILE = join(USAGE_DIR, 'provider-snapshots.json');
-const VOLC_PLAN_FILE = join(USAGE_DIR, 'volc-plan.json');
 const FIVE_HOUR_MS = 5 * 60 * 60 * 1000;
 
 // Last path segment of a cwd (also the workspace name fallback).
@@ -98,7 +97,6 @@ export function apply(ctx) {
   /** sessionId -> provider id from the latest request/header event. */
   const routeOf = new Map();
   let snapCache = { at: 0, providers: null };
-  let planCache = { at: 0, quota: 0, offset: 0, windowEndAt: 0, manualPct: null };
   /** sessionId -> cumulative tokens consumed (all buckets), from session events. */
   const cumulative = new Map();
 
@@ -293,30 +291,6 @@ export function apply(ctx) {
     return snapCache.providers;
   }
 
-  // Volc 5h quota + calibration state: volc-plan.json, written by the in-panel
-  // calibrate control. The Coding Plan limits REQUESTS per 5h window (not
-  // tokens), so quota/offset are in request counts: {"quotaCalls": N,
-  // "offsetCalls": M, "windowEndAt": ts, "quotaSource": "user"|"seeded"}.
-  function volcQuota() {
-    if (Date.now() - planCache.at > 5 * 60 * 1000) {
-      const raw = readJson(VOLC_PLAN_FILE) ?? {};
-      const q = Number(raw.quotaCalls ?? 0);
-      const o = Number(raw.offsetCalls ?? 0);
-      const w = Number(raw.windowEndAt ?? 0);
-      const m = Number(raw.manualPct ?? NaN);
-      const s = String(raw.quotaSource ?? '');
-      planCache = {
-        at: Date.now(),
-        quota: Number.isFinite(q) && q > 0 ? q : 0,
-        offset: Number.isFinite(o) ? o : 0,
-        windowEndAt: Number.isFinite(w) && w > 0 ? w : 0,
-        manualPct: Number.isFinite(m) && m >= 0 && m <= 100 ? m : null,
-        quotaSource: s === 'user' || s === 'seeded' ? s : '',
-      };
-    }
-    return planCache;
-  }
-
   function volc5hPrune() {
     const cutoff = Date.now() - FIVE_HOUR_MS;
     while (volcWindow.length > 0 && volcWindow[0].at < cutoff) volcWindow.shift();
@@ -335,29 +309,7 @@ export function apply(ctx) {
 
   function providerBadge(provider) {
     if (/volc/i.test(provider ?? '')) {
-      const { quota, offset, windowEndAt, manualPct } = volcQuota();
-      const now = Date.now();
-      // The calibration offset is only valid for the window it was calibrated in.
-      const manual = windowEndAt > now;
-      const calls = Math.max(0, volc5hCalls() + (manual ? offset : 0));
-      const tokens = volc5hTokens();
-      let resetAt = manual ? windowEndAt : null;
-      if (!resetAt) {
-        const oldest = volcWindow[0]?.at;
-        if (oldest) resetAt = oldest + FIVE_HOUR_MS;
-      }
-      // With a quota the percentage is computed live; without one the last
-      // console-calibrated value stands until the window expires.
-      let pct = null;
-      if (quota > 0) pct = Math.min(100, calls / quota * 100);
-      else if (manualPct != null && (manual || !windowEndAt)) pct = manualPct;
-      return {
-        kind: 'volc',
-        calls,
-        tokens,
-        ...(pct != null ? { pct } : {}),
-        ...(resetAt ? { resetAt } : {}),
-      };
+      return { kind: 'volc', calls: volc5hCalls(), tokens: volc5hTokens() };
     }
     if (/deepseek/i.test(provider ?? '')) {
       const b = providerSnapshots()?.['deepseek-official']?.balance;
@@ -538,63 +490,18 @@ export function apply(ctx) {
     },
   }), 'session-board: api route');
 
-  // Manual calibration of the volc 5h estimate: {pct} = what the console shows.
+  // Clear observed errors: {id} clears one session, {} clears all. The orb
+  // returns to normal until a new error actually occurs.
   ctx.effect(() => ctx.connection.fetch.register({
-    path: '/api/session-board/calibrate',
+    path: '/api/session-board/clear-failed',
     methods: ['POST'],
     requestBody: 'buffered',
     fetch: async request => {
       let body = {};
       try { body = await request.json(); } catch {}
-      const pct = Number(body?.pct);
-      if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
-        return Response.json({ ok: false, error: 'pct 必须在 0-100 之间' }, { status: 400 });
-      }
-      // Effective quota (requests): user input > stored quota > seeded estimate
-      // from the console % over the local request window (so % moves live).
-      const quotaIn = Number(body?.quotaCalls);
-      const prev = volcQuota();
-      let quota = Number.isFinite(quotaIn) && quotaIn > 0 ? quotaIn : 0;
-      let quotaSource = quota > 0 ? 'user' : '';
-      if (!(quota > 0) && prev.quota > 0 && (prev.quotaSource === 'user' || prev.quotaSource === 'seeded')) {
-        quota = prev.quota;
-        quotaSource = prev.quotaSource;
-      }
-      if (!(quota > 0) && pct > 0.5) {
-        const S = volc5hCalls();
-        if (S > 0) { quota = Math.round(S / (pct / 100)); quotaSource = 'seeded'; }
-      }
-      // Optional countdown anchor: {hours} = remaining hours of the current window.
-      const hours = Number(body?.hours);
-      const previous = volcQuota();
-      const windowEndAt = Number.isFinite(hours) && hours > 0
-        ? Date.now() + hours * 3600 * 1000
-        : (previous.windowEndAt > Date.now() ? previous.windowEndAt : 0);
-      const record = { updatedAt: new Date().toISOString() };
-      let offset = 0;
-      if (quota > 0) {
-        record.quotaCalls = quota;
-        record.quotaSource = quotaSource;
-        offset = Math.round(pct / 100 * quota - volc5hCalls());
-        record.offsetCalls = offset;
-      } else {
-        record.manualPct = pct;
-      }
-      if (windowEndAt) record.windowEndAt = windowEndAt;
-      try {
-        writeFileSync(VOLC_PLAN_FILE, JSON.stringify(record, null, 1));
-      } catch (error) {
-        return Response.json({ ok: false, error: String(error?.message ?? error) }, { status: 500 });
-      }
-      planCache = {
-        at: Date.now(), quota, offset, windowEndAt,
-        manualPct: quota > 0 ? null : pct,
-        quotaSource: quota > 0 ? quotaSource : '',
-      };
-      const shownPct = quota > 0
-        ? Math.min(100, Math.max(0, volc5hCalls() + offset) / quota * 100)
-        : pct;
-      return Response.json({ ok: true, pct: shownPct });
+      if (body?.id) errors.delete(String(body.id));
+      else errors.clear();
+      return Response.json({ ok: true });
     },
-  }), 'session-board: calibrate route');
+  }), 'session-board: clear-failed route');
 }

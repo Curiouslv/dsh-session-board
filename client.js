@@ -71,37 +71,20 @@ window.__ModuleLoader__.load({
       return parts[parts.length - 1] ?? '';
     };
 
-    // Gray context-usage ring; tone 'time' renders amber (2π×6.5 ≈ 40.84 stroke).
+    // Gray context-usage ring (2π×6.5 ≈ 40.84 stroke length).
     const RING_LEN = 40.84;
-    const FIVE_HOUR_MS = 5 * 60 * 60 * 1000;
-    const Ring = ({ pct, tone }) => h('svg', { className: 'sb-ring', viewBox: '0 0 16 16', 'aria-hidden': true },
+    const Ring = ({ pct }) => h('svg', { className: 'sb-ring', viewBox: '0 0 16 16', 'aria-hidden': true },
       h('circle', { className: 'sb-ring-bg', cx: 8, cy: 8, r: 6.5 }),
       pct != null
         ? h('circle', {
-            className: 'sb-ring-fg' + (tone === 'time' ? ' sb-ring-time' : ''), cx: 8, cy: 8, r: 6.5,
+            className: 'sb-ring-fg', cx: 8, cy: 8, r: 6.5,
             strokeDasharray: `${(Math.min(100, Math.max(0, pct)) / 100) * RING_LEN} ${RING_LEN}`,
           })
         : null,
     );
 
-    const fmtCountdown = ms => {
-      if (!(ms > 0)) return '';
-      const s = Math.floor(ms / 1000);
-      const hh = Math.floor(s / 3600), mm = Math.floor((s % 3600) / 60);
-      return `剩${hh}:${String(mm).padStart(2, '0')}`;
-    };
-
-    // "2:45" / "2时45" / "2h45" → 2.75h; plain numbers stay decimal hours.
-    const parseHours = s => {
-      const t = String(s ?? '').trim();
-      if (!t) return NaN;
-      const m = t.match(/^(\d+(?:\.\d+)?)\s*(?:[:：h时]\s*(\d{1,2}))?$/);
-      if (!m) return NaN;
-      return Number(m[1]) + (m[2] ? Number(m[2]) / 60 : 0);
-    };
-
     const badgeTitle = q => q?.kind === 'volc'
-      ? `火山 coding plan 近5小时请求量（按次限额；本地估算${q.pct != null ? '，已校准' : ''}；点击校准）`
+      ? `火山 coding plan 近5小时窗口（本地统计）：${q.calls ?? 0} 次请求 · ${fmtTokens(q.tokens)} tokens`
       : q?.kind === 'deepseek' ? 'DeepSeek API 余额（由 dsh-usage 插件刷新）' : '';
 
     const postJSON = (route, body) => fetch(route, {
@@ -154,14 +137,8 @@ window.__ModuleLoader__.load({
 .sb-ring-bg,.sb-ring-fg{fill:none;stroke-width:2.5}
 .sb-ring-bg{stroke:var(--dsw-alias-border-l2)}
 .sb-ring-fg{stroke:var(--dsw-alias-label-tertiary);stroke-linecap:round}
-.sb-ring-time{stroke:#f5b73e}
 .sb-sep{color:var(--dsw-alias-border-l2)}
 .sb-quota{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11px;white-space:nowrap}
-.sb-quota-btn{cursor:pointer}
-.sb-quota-btn:hover{color:var(--dsw-alias-label-primary)}
-.sb-calib{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);flex:none}
-.sb-calib-input{width:86px;font-size:11px;padding:2px 6px;border:1px solid var(--dsw-alias-border-l2);border-radius:4px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
-.sb-calib-err{color:#ef5350;font-size:10px;white-space:normal;line-height:1.3}
 `;
 
     function BoardRow({ row, t, onDismiss, onOpen }) {
@@ -186,7 +163,15 @@ window.__ModuleLoader__.load({
               )
             : null,
           onDismiss && (row.status === 'idle' || row.status === 'failed')
-            ? h('button', { className: 'sb-x', onClick: e => { e.stopPropagation(); onDismiss(row.id); }, title: t('Dismiss') }, '×')
+            ? h('button', {
+                className: 'sb-x',
+                onClick: e => {
+                  e.stopPropagation();
+                  if (row.status === 'failed') postJSON('api/session-board/clear-failed', { id: row.id });
+                  onDismiss(row.id);
+                },
+                title: t('Dismiss'),
+              }, '×')
             : null,
         ),
         row.preview || row.status === 'running'
@@ -240,25 +225,6 @@ window.__ModuleLoader__.load({
         setOpen(o => !o);
       };
       const [, force] = React.useState(0);
-      const [calib, setCalib] = React.useState(false);
-      const [calibVal, setCalibVal] = React.useState('');
-      const [calibHours, setCalibHours] = React.useState('');
-      const [calibQuota, setCalibQuota] = React.useState('');
-      const [calibErr, setCalibErr] = React.useState('');
-      const submitCalib = async () => {
-        const pct = parseFloat(calibVal);
-        if (!Number.isFinite(pct) || pct < 0 || pct > 100) { setCalibErr('百分比需在 0-100'); return; }
-        const hours = parseHours(calibHours);
-        const quota = parseFloat(calibQuota);
-        if (calibHours.trim() && (!Number.isFinite(hours) || hours <= 0)) { setCalibErr('剩余时间格式如 2:45 或 2.75'); return; }
-        const res = await postJSON('api/session-board/calibrate', {
-          pct,
-          ...(Number.isFinite(hours) && hours > 0 ? { hours } : {}),
-          ...(Number.isFinite(quota) && quota > 0 ? { quotaCalls: quota } : {}),
-        });
-        if (res?.ok) setCalib(false);
-        else setCalibErr(String(res?.error ?? '校准失败'));
-      };
 
       React.useEffect(() => {
         if (!localeSvc?.subscribe) return undefined;
@@ -314,11 +280,16 @@ window.__ModuleLoader__.load({
       const t = getT();
       const { rows } = data;
       const dismiss = id => setDismissed(prev => { const n = new Set(prev); n.add(id); return n; });
-      const clearIdle = () => setDismissed(prev => {
-        const n = new Set(prev);
-        for (const r of rows) if (r.status === 'idle') n.add(r.id);
-        return n;
-      });
+      // 清除空闲: hide idle rows locally AND clear observed failures server-side,
+      // so the orb returns to normal until a new error actually occurs.
+      const clearIdle = () => {
+        setDismissed(prev => {
+          const n = new Set(prev);
+          for (const r of rows) if (r.status === 'idle') n.add(r.id);
+          return n;
+        });
+        postJSON('api/session-board/clear-failed', {});
+      };
       const shown = rows.filter(r => r.status === 'running' || r.status === 'blocked' || !dismissed.has(r.id));
       const active = rows.filter(r => r.status === 'running' || r.status === 'blocked' || r.status === 'failed');
       const anyRunning = rows.some(r => r.status === 'running');
@@ -334,58 +305,18 @@ window.__ModuleLoader__.load({
               h('span', null, t('Session Board')),
               h('div', { className: 'sb-head-actions' },
                 (data.providers ?? []).map((q, i) => h('span', {
-                  className: 'sb-quota' + (q.kind === 'volc' ? ' sb-quota-btn' : ''),
+                  className: 'sb-quota',
                   key: i,
                   title: badgeTitle(q),
-                  onClick: q.kind === 'volc'
-                    ? () => { setCalibVal(''); setCalibHours(''); setCalibQuota(''); setCalibErr(''); setCalib(true); }
-                    : undefined,
                 },
                   q.kind === 'volc'
-                    ? [
-                        '⚡',
-                        q.pct != null ? h(Ring, { pct: q.pct }) : null,
-                        q.pct != null ? `${q.pct.toFixed(1)}%` : null,
-                        q.resetAt
-                          ? [
-                              h('span', { className: 'sb-sep' }, '·'),
-                              h(Ring, { pct: Math.max(0, Math.min(100, (q.resetAt - Date.now()) / FIVE_HOUR_MS * 100)), tone: 'time' }),
-                              fmtCountdown(q.resetAt - Date.now()) || '已重置',
-                            ]
-                          : '5h',
-                        h('span', { className: 'sb-sep' }, '·'),
-                        `${q.calls ?? 0}次`,
-                      ]
+                    ? ['⚡', `${q.calls ?? 0}次`, h('span', { className: 'sb-sep' }, '·'), '🪙', fmtTokens(q.tokens)]
                     : [`💰¥${q.balance}`],
                 )),
                 h('button', { className: 'sb-clear', onClick: clearIdle, title: t('Clear idle') }, t('Clear idle')),
                 h('button', { className: 'sb-close', onClick: () => setOpen(false), 'aria-label': 'close' }, '×'),
               ),
             ),
-            calib ? h('div', { className: 'sb-calib' },
-              h('input', {
-                className: 'sb-calib-input', type: 'number', step: '0.01', min: '0', max: '100',
-                placeholder: '控制台%', value: calibVal,
-                onChange: e => setCalibVal(e.target.value),
-                onKeyDown: e => { if (e.key === 'Enter') submitCalib(); },
-                autoFocus: true,
-              }),
-              h('input', {
-                className: 'sb-calib-input', type: 'text',
-                placeholder: '剩余时 如2:45', value: calibHours,
-                onChange: e => setCalibHours(e.target.value),
-                onKeyDown: e => { if (e.key === 'Enter') submitCalib(); },
-              }),
-              h('input', {
-                className: 'sb-calib-input', type: 'number', step: '1', min: '0',
-                placeholder: '配额次(可选)', value: calibQuota,
-                onChange: e => setCalibQuota(e.target.value),
-                onKeyDown: e => { if (e.key === 'Enter') submitCalib(); },
-              }),
-              h('button', { className: 'sb-clear', onClick: submitCalib }, '校准'),
-              h('button', { className: 'sb-clear', onClick: () => setCalib(false) }, '取消'),
-              calibErr ? h('span', { className: 'sb-calib-err' }, calibErr) : null,
-            ) : null,
             data.error ? h('div', { className: 'sb-error' }, `${t('Load failed')}: ${data.error}`) : null,
             h('div', { className: 'sb-rows' },
               shown.length === 0 && !data.error ? h('div', { className: 'sb-empty' }, t('No active sessions')) : null,
