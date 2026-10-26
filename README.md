@@ -19,7 +19,7 @@ DSH Desktop（DeepSeek Harness）的**会话看板**插件：右下角一颗可�
 前提：已安装 DSH Desktop。插件零 npm 依赖，只需挂进 profile。
 
 ```bat
-git clone https://github.com/<你的用户名>/dsh-session-board.git
+git clone https://github.com/Curiouslv/dsh-session-board.git
 ```
 
 编辑 `%USERPROFILE%\.dsh\profiles\desktop\package.json`：
@@ -56,19 +56,17 @@ mklink /J "%USERPROFILE%\.dsh\profiles\desktop\node_modules\dsh-session-board" "
 | 点击悬浮球 | 展开 / 收起看板 |
 | 拖拽悬浮球 | 任意位置，自动记忆 |
 | 点击行 | 跳转到对应会话 |
-| 行右侧 × | 隐藏该行（会话恢复活动时自动回来） |
-| 清除空闲 | 一键隐藏所有空闲行 |
-| 点击 ⚡ 徽标 | 打开配额校准 |
+| 行右侧 × | 隐藏该行；失败行同时清除该错误（会话恢复活动时自动回来） |
+| 清除空闲 | 隐藏空闲行并清除失败状态，悬浮球恢复常色 |
 
-### 配额校准（火山方舟 Coding Plan）
+### 近 5 小时用量统计
 
-Coding Plan 按**请求次数**限额（5 小时窗口）。点 ⚡ 徽标：
+面板头部的 ⚡ 徽标显示火山方舟 Coding Plan 近 5 小时滚动窗口的实际用量：
 
-1. **控制台%**：填火山控制台显示的当前用量百分比
-2. **剩余时**：窗口剩余时间，支持 `2:45`（时:分）或 `2.75`（小时）
-3. **配额次**（可选）：若控制台/商品页写明了次数配额，填上最准
+- **请求次数**（每次模型调用 +1）
+- **token 消耗**（输入 + 输出 + 缓存读写）
 
-校准数据存于 `~/.dsh/dsh-usage/volc-plan.json`。不填配额时自动反推：`配额 ≈ 本地窗口请求数 ÷ 控制台百分比`，之后百分比随请求实时增长；每次重新校准都会重新锚定。窗口到期后校准自动失效，重校一次即可。
+数据按「每次模型调用」本地统计，窗口持久化到 `~/.dsh/dsh-usage/session-board-window.json`，重启不清零。悬停可看统计口径说明。
 
 ## 可选依赖
 
