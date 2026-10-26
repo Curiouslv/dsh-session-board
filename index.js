@@ -428,16 +428,31 @@ export function apply(ctx) {
       if (w?.id) ws.set(String(w.id), String(w?.title ?? cwdTail(w?.path) ?? '').slice(0, 40));
     }
 
+    // Running background jobs per owning session (ctx.jobs, optional service).
+    const jobsByOwner = new Map();
+    safe(() => {
+      for (const job of ctx.get('jobs')?.list?.() ?? []) {
+        if (job?.status !== 'running' && job?.status !== 'stopping') continue;
+        const owner = String(job.owner ?? '');
+        if (!owner) continue;
+        if (!jobsByOwner.has(owner)) jobsByOwner.set(owner, []);
+        jobsByOwner.get(owner).push(String(job.label ?? job.kind ?? job.id).slice(0, 80));
+      }
+      return true;
+    }, false);
+
     const out = [];
     for (const row of rows) {
       const l = live.get(row.id);
       if (l?.running === true && !activity.has(row.id)) await seedActivity(row.id);
       const blockedEntry = blocked.get(row.id);
       const running = l?.running === true;
+      const bgJobs = jobsByOwner.get(row.id) ?? [];
       let status = 'idle';
       if (blockedEntry && blockedEntry.count > 0) status = 'blocked';
       else if (running) status = 'running';
       else if (errors.has(row.id)) status = 'failed';
+      else if (bgJobs.length > 0) status = 'working'; // turn ended, background jobs still going
       if (status === 'running' || status === 'blocked') errors.delete(row.id); // it recovered
 
       const updatedAt = row.updatedAt ?? (l ? now : null);
@@ -454,7 +469,8 @@ export function apply(ctx) {
         status,
         detail: status === 'blocked' ? (blockedEntry?.detail ?? '')
           : status === 'failed' ? (errors.get(row.id)?.message ?? '') : '',
-        preview: status === 'running' || status === 'blocked' ? (u?.liveText || act?.text || '') : '',
+        preview: status === 'running' || status === 'blocked' ? (u?.liveText || act?.text || '')
+          : status === 'working' ? `后台任务: ${bgJobs.join('、')}` : '',
         previewKind: act?.kind ?? '',
         tokens: u?.tokens ?? null,
         ctxPct: u?.pct ?? null,
@@ -481,7 +497,7 @@ export function apply(ctx) {
       if (b) providers.push(b);
     }
 
-    const order = { blocked: 0, running: 1, failed: 2, idle: 3 };
+    const order = { blocked: 0, running: 1, working: 2, failed: 3, idle: 4 };
     out.sort((a, b) => order[a.status] - order[b.status] || (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
     // Backfill cumulative counters (active rows first, one log read per session).
     for (const row of out) if (!cumulative.has(row.id)) queueCumulative(row.id);

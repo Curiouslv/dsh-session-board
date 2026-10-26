@@ -9,7 +9,7 @@ window.__ModuleLoader__.load({
     const ROUTE = 'api/session-board';
     const POLL_MS = 2500;
     const LIVE_POLL_MS = 1200;
-    const COLORS = { running: '#4c8dff', blocked: '#f5b73e', failed: '#ef5350', idle: '#9aa3ab' };
+    const COLORS = { running: '#4c8dff', working: '#f5b73e', blocked: '#f5b73e', failed: '#ef5350', idle: '#9aa3ab' };
     const POS_KEY = 'sb-orb-pos';
     const loadPos = () => {
       try {
@@ -150,7 +150,7 @@ window.__ModuleLoader__.load({
         onClick: () => onOpen?.(row.id),
       },
         h('div', { className: 'sb-row-head' },
-          h('span', { className: 'sb-dot' + (row.status === 'running' ? ' sb-breathe' : ''), style: { background: COLORS[row.status] ?? COLORS.idle } }),
+          h('span', { className: 'sb-dot' + (row.status === 'running' || row.status === 'working' ? ' sb-breathe' : ''), style: { background: COLORS[row.status] ?? COLORS.idle } }),
           h('span', { className: 'sb-row-title', title: row.id ? `${row.title} · ${row.id}` : row.title }, row.title),
           row.kind === 'sub' ? h('span', { className: 'sb-tag' }, t('Sub')) : null,
           (row.tokens != null || row.spent != null || row.ctxPct != null)
@@ -176,7 +176,7 @@ window.__ModuleLoader__.load({
               }, '×')
             : null,
         ),
-        row.preview || row.status === 'running'
+        row.preview || row.status === 'running' || row.status === 'working'
           ? h('div', { className: 'sb-preview' + (row.status === 'running' ? ' sb-preview-live' : ''), title: row.preview || undefined },
               row.preview || t('Thinking'))
           : null,
@@ -292,7 +292,7 @@ window.__ModuleLoader__.load({
         });
         postJSON('api/session-board/clear-failed', {});
       };
-      const shown = rows.filter(r => r.status === 'running' || r.status === 'blocked' || !dismissed.has(r.id));
+      const shown = rows.filter(r => r.status === 'running' || r.status === 'blocked' || r.status === 'working' || !dismissed.has(r.id));
 
       // Dismissal is one-shot: once a hidden session becomes active again
       // (running / blocked / failed), lift the dismissal so it keeps showing
@@ -337,11 +337,12 @@ window.__ModuleLoader__.load({
         return () => clearInterval(timer);
       }, []);
 
-      const active = rows.filter(r => r.status === 'running' || r.status === 'blocked' || r.status === 'failed');
+      const active = rows.filter(r => r.status === 'running' || r.status === 'blocked' || r.status === 'working' || r.status === 'failed');
       const anyRunning = rows.some(r => r.status === 'running');
+      const anyWorking = rows.some(r => r.status === 'working');
       const anyBlocked = rows.some(r => r.status === 'blocked');
       const anyFailed = rows.some(r => r.status === 'failed');
-      const orbColor = anyFailed ? COLORS.failed : anyBlocked ? COLORS.blocked : anyRunning ? COLORS.running : '#3ecf6f';
+      const orbColor = anyFailed ? COLORS.failed : anyBlocked ? COLORS.blocked : anyRunning ? COLORS.running : anyWorking ? COLORS.working : '#3ecf6f';
 
       return h('div', { className: 'sb-root', style: { right: pos.right, bottom: pos.bottom } },
         h('style', null, CSS),
