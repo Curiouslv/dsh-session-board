@@ -369,7 +369,7 @@ window.__ModuleLoader__.load({
               shown.map(row => h(BoardRow, {
                 row, t, key: row.id, onDismiss: dismiss,
                 active: row.id === currentId,
-                onOpen: id => { openSessionNav?.(id); setOpen(false); },
+                onOpen: id => { openSessionNav?.(id); },
               })),
               data.hidden > 0 ? h('div', { className: 'sb-hidden' }, t('hidden', { n: data.hidden })) : null,
             ),
