@@ -291,6 +291,21 @@ window.__ModuleLoader__.load({
         postJSON('api/session-board/clear-failed', {});
       };
       const shown = rows.filter(r => r.status === 'running' || r.status === 'blocked' || !dismissed.has(r.id));
+
+      // Dismissal is one-shot: once a hidden session becomes active again
+      // (running / blocked / failed), lift the dismissal so it keeps showing
+      // normally after the task ends instead of vanishing again.
+      React.useEffect(() => {
+        if (rows.some(r => r.status !== 'idle')) {
+          setDismissed(prev => {
+            const n = new Set(prev);
+            let changed = false;
+            for (const r of rows) if (r.status !== 'idle' && n.has(r.id)) { n.delete(r.id); changed = true; }
+            return changed ? n : prev;
+          });
+        }
+      }, [rows]);
+
       const active = rows.filter(r => r.status === 'running' || r.status === 'blocked' || r.status === 'failed');
       const anyRunning = rows.some(r => r.status === 'running');
       const anyBlocked = rows.some(r => r.status === 'blocked');
