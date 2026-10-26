@@ -101,7 +101,7 @@ window.__ModuleLoader__.load({
 .sb-orb:hover{transform:scale(1.06)}
 .sb-orb-dot{width:14px;height:14px;border-radius:50%;background:${COLORS.idle}}
 .sb-pulse{animation:sb-pulse 2.2s ease-in-out infinite}
-@keyframes sb-pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes sb-pulse{0%{box-shadow:0 0 0 0 rgba(76,141,255,.55);transform:scale(1)}60%{box-shadow:0 0 0 9px rgba(76,141,255,0);transform:scale(1.2)}100%{box-shadow:0 0 0 0 rgba(76,141,255,0);transform:scale(1)}}
 .sb-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:${COLORS.running};color:#fff;font-size:11px;font-weight:600;line-height:18px;text-align:center;box-sizing:border-box}
 .sb-panel{position:absolute;right:0;bottom:54px;width:350px;max-height:min(64vh,560px);display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.28);overflow:hidden;text-align:left}
 .sb-panel-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-weight:600;font-size:13px;flex:none}
