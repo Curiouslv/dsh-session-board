@@ -49,6 +49,14 @@ mklink /J "%USERPROFILE%\.dsh\profiles\desktop\node_modules\dsh-session-board" "
 
 （或在 profile 目录里跑 `pnpm install` 代替手动 mklink。）重启后在桌面端右下角即可看到悬浮球。
 
+### 用 DSH CLI 安装（更简单）
+
+本插件声明了 `dsh.bundle` 清单，可用官方 CLI 直接安装（具体参数以 `dsh plugin add --help` 为准）：
+
+```sh
+dsh plugin --profile desktop add https://github.com/Curiouslv/dsh-session-board
+```
+
 ## 使用
 
 | 操作 | 说明 |
