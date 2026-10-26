@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Session Board",
+    "description": "Floating orb and board showing every live session across workspaces: running, blocked, finished, failed, with context usage."
+  }
+}

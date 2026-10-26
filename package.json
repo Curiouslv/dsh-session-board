@@ -1,0 +1,33 @@
+{
+  "name": "dsh-session-board",
+  "version": "1.11.0",
+  "description": "DSH Desktop 会话看板：悬浮球展示所有工作区的活跃会话，实时思考预览、上下文用量圆环、点击跳转会话、coding plan 配额校准",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "session-board",
+    "plugin",
+    "coding-plan"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": { "platform": "web", "immediately": true }
+  }
+}
