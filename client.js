@@ -37,6 +37,7 @@ window.__ModuleLoader__.load({
 
     let localeSvc;
     let openSessionNav;
+    let sessionsSvc;
     const getT = () => {
       const id = String(localeSvc?.getLocale?.()?.id ?? 'en').toLowerCase();
       const dict = id.startsWith('zh') ? ZH : {};
@@ -306,6 +307,33 @@ window.__ModuleLoader__.load({
         }
       }, [rows]);
 
+      // Visiting a session in the main view lifts its dismissal too: switching
+      // to a workspace/conversation counts as renewed interest in it.
+      React.useEffect(() => {
+        const store = sessionsSvc?.list;
+        if (!store?.getSnapshot) return undefined;
+        const lift = () => {
+          try {
+            const entry = Object.entries(store.getSnapshot()?.byId ?? {})
+              .find(([, row]) => (row?.retainedBy?.mainView ?? 0) > 0);
+            const id = entry?.[0];
+            if (id) setDismissed(prev => {
+              if (!prev.has(id)) return prev;
+              const n = new Set(prev);
+              n.delete(id);
+              return n;
+            });
+          } catch {}
+        };
+        lift();
+        if (store.subscribe) {
+          const off = store.subscribe(lift);
+          return () => { try { off?.(); } catch {} };
+        }
+        const timer = setInterval(lift, 1000);
+        return () => clearInterval(timer);
+      }, []);
+
       const active = rows.filter(r => r.status === 'running' || r.status === 'blocked' || r.status === 'failed');
       const anyRunning = rows.some(r => r.status === 'running');
       const anyBlocked = rows.some(r => r.status === 'blocked');
@@ -361,9 +389,10 @@ window.__ModuleLoader__.load({
     }
 
     return {
-      inject: ['slots', 'locale'],
+      inject: ['slots', 'locale', 'sessions'],
       apply(ctx) {
         localeSvc = ctx.locale;
+        sessionsSvc = ctx.sessions;
         // Navigate the main view to a session; the workspace service owns switching.
         openSessionNav = id => {
           try { ctx.get('uiWorkspace')?.openSession?.(String(id)); } catch {}
