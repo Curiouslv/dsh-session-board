@@ -131,7 +131,7 @@ window.__ModuleLoader__.load({
 .sb-row:hover .sb-x{visibility:visible}
 .sb-x:hover{color:var(--dsw-alias-label-primary)}
 .sb-dot.sb-breathe{animation:sb-breathe 2.2s ease-in-out infinite}
-@keyframes sb-breathe{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(76,141,255,.45)}50%{opacity:.55;box-shadow:0 0 0 5px rgba(76,141,255,0)}}
+@keyframes sb-breathe{0%{box-shadow:0 0 0 0 rgba(76,141,255,.6);transform:scale(1)}60%{box-shadow:0 0 0 7px rgba(76,141,255,0);transform:scale(1.22)}100%{box-shadow:0 0 0 0 rgba(76,141,255,0);transform:scale(1)}}
 .sb-preview{margin:3px 0 0 17px;font-size:11px;line-height:1.45;color:var(--dsw-alias-label-secondary);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all}
 .sb-preview-live{color:#7aa9ff}
 .sb-row-meta{display:inline-flex;align-items:center;gap:3px}
