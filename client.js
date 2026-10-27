@@ -9,7 +9,25 @@ window.__ModuleLoader__.load({
     const ROUTE = 'api/session-board';
     const POLL_MS = 2500;
     const LIVE_POLL_MS = 1200;
-    const COLORS = { running: '#4c8dff', working: '#f5b73e', blocked: '#f5b73e', failed: '#ef5350', idle: '#9aa3ab' };
+    const THEME_KEY = 'sb-theme';
+    const DEFAULT_THEME = {
+      running: '#4c8dff', working: '#f5b73e', blocked: '#f5b73e',
+      failed: '#ef5350', idle: '#9aa3ab', orbIdle: '#3ecf6f', orbSize: 44,
+    };
+    const COLOR_FIELDS = [
+      ['running', '运行'], ['working', '后台'], ['blocked', '等待'],
+      ['failed', '失败'], ['idle', '空闲'], ['orbIdle', '球待机'],
+    ];
+    const loadTheme = () => {
+      try { return { ...DEFAULT_THEME, ...JSON.parse(localStorage.getItem(THEME_KEY)) }; } catch {}
+      return { ...DEFAULT_THEME };
+    };
+    const hexToRgba = (hex, a) => {
+      const m = /^#([0-9a-f]{6})$/i.exec(String(hex || ''));
+      if (!m) return `rgba(76,141,255,${a})`;
+      const n = parseInt(m[1], 16);
+      return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+    };
     const POS_KEY = 'sb-orb-pos';
     const loadPos = () => {
       try {
@@ -97,19 +115,19 @@ window.__ModuleLoader__.load({
 
     const CSS = `
 .sb-root{position:fixed;right:18px;bottom:18px;z-index:900;font-family:inherit}
-.sb-orb{position:relative;width:44px;height:44px;border-radius:50%;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);cursor:pointer;display:grid;place-items:center;box-shadow:0 6px 20px rgba(0,0,0,.25);transition:transform .15s ease,box-shadow .15s ease;padding:0;touch-action:none;user-select:none}
+.sb-orb{position:relative;width:var(--sb-orb-size);height:var(--sb-orb-size);border-radius:50%;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);color:var(--dsw-alias-label-primary);cursor:pointer;display:grid;place-items:center;box-shadow:0 6px 20px rgba(0,0,0,.25);transition:transform .15s ease,box-shadow .15s ease;padding:0;touch-action:none;user-select:none}
 .sb-orb:hover{transform:scale(1.06)}
-.sb-orb-dot{width:14px;height:14px;border-radius:50%;background:${COLORS.idle}}
+.sb-orb-dot{width:calc(var(--sb-orb-size)*0.32);height:calc(var(--sb-orb-size)*0.32);border-radius:50%;background:var(--sb-idle)}
 .sb-pulse{animation:sb-pulse 2.2s ease-in-out infinite}
-@keyframes sb-pulse{0%{box-shadow:0 0 0 0 rgba(76,141,255,.55);transform:scale(1)}60%{box-shadow:0 0 0 9px rgba(76,141,255,0);transform:scale(1.2)}100%{box-shadow:0 0 0 0 rgba(76,141,255,0);transform:scale(1)}}
-.sb-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:${COLORS.running};color:#fff;font-size:11px;font-weight:600;line-height:18px;text-align:center;box-sizing:border-box}
-.sb-panel{position:absolute;right:0;bottom:54px;width:350px;max-height:min(64vh,560px);display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.28);overflow:hidden;text-align:left}
+@keyframes sb-pulse{0%{box-shadow:0 0 0 0 var(--sb-running-glow);transform:scale(1)}60%{box-shadow:0 0 0 9px var(--sb-running-glow0);transform:scale(1.2)}100%{box-shadow:0 0 0 0 var(--sb-running-glow0);transform:scale(1)}}
+.sb-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:var(--sb-running);color:#fff;font-size:11px;font-weight:600;line-height:18px;text-align:center;box-sizing:border-box}
+.sb-panel{position:absolute;right:0;bottom:var(--sb-panel-bottom);width:350px;max-height:min(64vh,560px);display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.28);overflow:hidden;text-align:left}
 .sb-panel-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-weight:600;font-size:13px;flex:none}
 .sb-close{border:0;background:none;color:var(--dsw-alias-label-tertiary);font-size:16px;cursor:pointer;line-height:1;padding:2px 6px}
 .sb-close:hover{color:var(--dsw-alias-label-primary)}
 .sb-rows{overflow-y:auto;padding:2px 0}
 .sb-row{padding:8px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);cursor:pointer}
-.sb-row-active{background:var(--dsw-alias-bg-layer-2);box-shadow:inset 2px 0 0 #4c8dff}
+.sb-row-active{background:var(--dsw-alias-bg-layer-2);box-shadow:inset 2px 0 0 var(--sb-running)}
 .sb-row:last-child{border-bottom:0}
 .sb-row:hover{background:var(--dsw-alias-bg-layer-2)}
 .sb-row-head{display:flex;align-items:center;gap:8px;min-width:0}
@@ -119,9 +137,9 @@ window.__ModuleLoader__.load({
 .sb-row-meta{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11px}
 .sb-row-sub{margin:3px 0 0 17px;color:var(--dsw-alias-label-tertiary);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sb-row-detail{margin:3px 0 0 17px;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.sb-detail-failed{color:${COLORS.failed}}
-.sb-detail-blocked{color:${COLORS.blocked}}
-.sb-error{padding:8px 12px;color:${COLORS.failed};font-size:12px}
+.sb-detail-failed{color:var(--sb-failed)}
+.sb-detail-blocked{color:var(--sb-blocked)}
+.sb-error{padding:8px 12px;color:var(--sb-failed);font-size:12px}
 .sb-empty{padding:18px 12px;color:var(--dsw-alias-label-secondary);font-size:12px;text-align:center}
 .sb-hidden{padding:8px 12px;color:var(--dsw-alias-label-tertiary);font-size:11px;text-align:center}
 .sb-head-actions{display:flex;align-items:center;gap:6px}
@@ -131,7 +149,7 @@ window.__ModuleLoader__.load({
 .sb-row:hover .sb-x{visibility:visible}
 .sb-x:hover{color:var(--dsw-alias-label-primary)}
 .sb-dot.sb-breathe{animation:sb-breathe 2.2s ease-in-out infinite}
-@keyframes sb-breathe{0%{box-shadow:0 0 0 0 rgba(76,141,255,.6);transform:scale(1)}60%{box-shadow:0 0 0 7px rgba(76,141,255,0);transform:scale(1.22)}100%{box-shadow:0 0 0 0 rgba(76,141,255,0);transform:scale(1)}}
+@keyframes sb-breathe{0%{box-shadow:0 0 0 0 var(--sb-running-glow);transform:scale(1)}60%{box-shadow:0 0 0 7px var(--sb-running-glow0);transform:scale(1.22)}100%{box-shadow:0 0 0 0 var(--sb-running-glow0);transform:scale(1)}}
 .sb-preview{margin:3px 0 0 17px;font-size:11px;line-height:1.45;color:var(--dsw-alias-label-secondary);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all}
 .sb-preview-live{color:#7aa9ff}
 .sb-row-meta{display:inline-flex;align-items:center;gap:3px}
@@ -141,16 +159,20 @@ window.__ModuleLoader__.load({
 .sb-ring-fg{stroke:var(--dsw-alias-label-tertiary);stroke-linecap:round}
 .sb-sep{color:var(--dsw-alias-border-l2)}
 .sb-quota{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11px;white-space:nowrap}
+.sb-theme{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);flex:none}
+.sb-theme-item{display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--dsw-alias-label-secondary)}
+.sb-theme-item input[type=color]{width:24px;height:18px;padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:4px;background:none;cursor:pointer}
+.sb-theme-item input[type=number]{width:44px;font-size:11px;padding:1px 4px;border:1px solid var(--dsw-alias-border-l2);border-radius:4px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 `;
 
-    function BoardRow({ row, t, onDismiss, onOpen, active }) {
+    function BoardRow({ row, t, onDismiss, onOpen, active, theme }) {
       return h('div', {
         className: 'sb-row' + (active ? ' sb-row-active' : ''),
         key: row.id,
         onClick: () => onOpen?.(row.id),
       },
         h('div', { className: 'sb-row-head' },
-          h('span', { className: 'sb-dot' + (row.status === 'running' || row.status === 'working' ? ' sb-breathe' : ''), style: { background: COLORS[row.status] ?? COLORS.idle } }),
+          h('span', { className: 'sb-dot' + (row.status === 'running' || row.status === 'working' ? ' sb-breathe' : ''), style: { background: theme[row.status] ?? theme.idle } }),
           h('span', { className: 'sb-row-title', title: row.id ? `${row.title} · ${row.id}` : row.title }, row.title),
           row.kind === 'sub' ? h('span', { className: 'sb-tag' }, t('Sub')) : null,
           (row.tokens != null || row.spent != null || row.ctxPct != null)
@@ -227,6 +249,19 @@ window.__ModuleLoader__.load({
         setOpen(o => !o);
       };
       const [, force] = React.useState(0);
+      const [theme, setTheme] = React.useState(loadTheme);
+      const themeRef = React.useRef(theme);
+      themeRef.current = theme;
+      const [showSettings, setShowSettings] = React.useState(false);
+      const setThemeField = (k, v) => setTheme(t => {
+        const n = { ...t, [k]: v };
+        try { localStorage.setItem(THEME_KEY, JSON.stringify(n)); } catch {}
+        return n;
+      });
+      const resetTheme = () => {
+        try { localStorage.removeItem(THEME_KEY); } catch {}
+        setTheme({ ...DEFAULT_THEME });
+      };
 
       React.useEffect(() => {
         if (!localeSvc?.subscribe) return undefined;
@@ -342,9 +377,21 @@ window.__ModuleLoader__.load({
       const anyWorking = rows.some(r => r.status === 'working');
       const anyBlocked = rows.some(r => r.status === 'blocked');
       const anyFailed = rows.some(r => r.status === 'failed');
-      const orbColor = anyFailed ? COLORS.failed : anyBlocked ? COLORS.blocked : anyRunning ? COLORS.running : anyWorking ? COLORS.working : '#3ecf6f';
+      const orbColor = anyFailed ? theme.failed : anyBlocked ? theme.blocked : anyRunning ? theme.running : anyWorking ? theme.working : theme.orbIdle;
 
-      return h('div', { className: 'sb-root', style: { right: pos.right, bottom: pos.bottom } },
+      const cssVars = {
+        '--sb-running': theme.running,
+        '--sb-working': theme.working,
+        '--sb-blocked': theme.blocked,
+        '--sb-failed': theme.failed,
+        '--sb-idle': theme.idle,
+        '--sb-running-glow': hexToRgba(theme.running, 0.6),
+        '--sb-running-glow0': hexToRgba(theme.running, 0),
+        '--sb-orb-size': `${theme.orbSize}px`,
+        '--sb-panel-bottom': `${theme.orbSize + 10}px`,
+      };
+
+      return h('div', { className: 'sb-root', style: { right: pos.right, bottom: pos.bottom, ...cssVars } },
         h('style', null, CSS),
         open
           ? h('div', { className: 'sb-panel', role: 'dialog', 'aria-label': t('Session Board') },
@@ -361,15 +408,39 @@ window.__ModuleLoader__.load({
                     : [`💰¥${q.balance}`],
                 )),
                 h('button', { className: 'sb-clear', onClick: clearIdle, title: t('Clear idle') }, t('Clear idle')),
+                h('button', {
+                  className: 'sb-clear',
+                  onClick: () => setShowSettings(s => !s),
+                  title: '自定义颜色与悬浮球',
+                }, '⚙'),
                 h('button', { className: 'sb-close', onClick: () => setOpen(false), 'aria-label': 'close' }, '×'),
               ),
             ),
+            showSettings ? h('div', { className: 'sb-theme' },
+              COLOR_FIELDS.map(([k, label]) => h('label', { className: 'sb-theme-item', key: k },
+                label,
+                h('input', {
+                  type: 'color',
+                  value: theme[k],
+                  onChange: e => setThemeField(k, e.target.value),
+                }),
+              )),
+              h('label', { className: 'sb-theme-item' }, '球径',
+                h('input', {
+                  type: 'number', min: 28, max: 96,
+                  value: theme.orbSize,
+                  onChange: e => setThemeField('orbSize', Math.max(28, Math.min(96, Math.round(+e.target.value || 44)))),
+                }),
+              ),
+              h('button', { className: 'sb-clear', onClick: resetTheme }, '默认'),
+            ) : null,
             data.error ? h('div', { className: 'sb-error' }, `${t('Load failed')}: ${data.error}`) : null,
             h('div', { className: 'sb-rows' },
               shown.length === 0 && !data.error ? h('div', { className: 'sb-empty' }, t('No active sessions')) : null,
               shown.map(row => h(BoardRow, {
                 row, t, key: row.id, onDismiss: dismiss,
                 active: row.id === currentId,
+                theme,
                 onOpen: id => { openSessionNav?.(id); },
               })),
               data.hidden > 0 ? h('div', { className: 'sb-hidden' }, t('hidden', { n: data.hidden })) : null,
@@ -378,8 +449,8 @@ window.__ModuleLoader__.load({
           : null,
         h('button', {
           className: 'sb-orb',
-          style: open || anyRunning || anyBlocked || anyFailed
-            ? { boxShadow: `0 0 0 3px ${orbColor}44, 0 6px 20px rgba(0,0,0,.25)` }
+          style: open || anyRunning || anyBlocked || anyFailed || anyWorking
+            ? { boxShadow: `0 0 0 3px ${hexToRgba(orbColor, 0.27)}, 0 6px 20px rgba(0,0,0,.25)` }
             : undefined,
           onPointerDown: onOrbPointerDown,
           onPointerMove: onOrbPointerMove,
@@ -387,7 +458,7 @@ window.__ModuleLoader__.load({
           title: t('Session Board'),
           'aria-expanded': open,
         },
-          h('span', { className: 'sb-orb-dot' + (anyRunning ? ' sb-pulse' : ''), style: { background: orbColor } }),
+          h('span', { className: 'sb-orb-dot' + (anyRunning || anyWorking ? ' sb-pulse' : ''), style: { background: orbColor } }),
           active.length > 0 ? h('span', { className: 'sb-badge' }, String(active.length)) : null,
         ),
       );
