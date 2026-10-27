@@ -104,7 +104,7 @@ window.__ModuleLoader__.load({
     );
 
     const badgeTitle = q => q?.kind === 'volc'
-      ? `近 5 小时窗口（本地按模型调用统计）：${q.calls ?? 0} 次请求 · ${fmtTokens(q.tokens)} tokens`
+      ? `本地统计（按模型调用）\n近12小时：${q.calls12 ?? 0} 次 · ${fmtTokens(q.tokens12 ?? 0)} tokens\n近30天：${q.calls30 ?? 0} 次 · ${fmtTokens(q.tokens30 ?? 0)} tokens`
       : q?.kind === 'deepseek' ? 'DeepSeek API 余额（由 dsh-usage 插件刷新）' : '';
 
     const postJSON = (route, body) => fetch(route, {
@@ -120,7 +120,9 @@ window.__ModuleLoader__.load({
 .sb-orb:hover{transform:scale(1.06)}
 .sb-orb-dot{width:calc(var(--sb-orb-size)*0.32);height:calc(var(--sb-orb-size)*0.32);border-radius:50%;background:var(--sb-idle)}
 .sb-pulse{animation:sb-pulse 2.2s ease-in-out infinite}
+.sb-orb-dot.sb-pulse-plain{animation:sb-pulse-plain 2.2s ease-in-out infinite}
 @keyframes sb-pulse{0%,100%{filter:brightness(1);box-shadow:0 0 0 0 var(--sb-running-glow)}50%{filter:brightness(1.9) saturate(.85);box-shadow:0 0 0 9px var(--sb-running-glow0)}}
+@keyframes sb-pulse-plain{0%,100%{box-shadow:0 0 0 0 var(--sb-running-glow)}50%{box-shadow:0 0 0 9px var(--sb-running-glow0)}}
 .sb-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:var(--sb-running);color:#fff;font-size:11px;font-weight:600;line-height:18px;text-align:center;box-sizing:border-box}
 .sb-panel{position:absolute;right:0;bottom:var(--sb-panel-bottom);width:350px;max-height:min(64vh,560px);display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.28);overflow:hidden;text-align:left}
 .sb-panel-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-weight:600;font-size:13px;flex:none}
@@ -153,7 +155,9 @@ window.__ModuleLoader__.load({
 .sb-row:hover .sb-x{visibility:visible}
 .sb-x:hover{color:var(--dsw-alias-label-primary)}
 .sb-dot.sb-breathe{animation:sb-breathe 2.2s ease-in-out infinite}
+.sb-dot.sb-breathe-plain{animation:sb-breathe-plain 2.2s ease-in-out infinite}
 @keyframes sb-breathe{0%,100%{filter:brightness(1);box-shadow:0 0 0 0 var(--sb-running-glow)}50%{filter:brightness(1.9) saturate(.85);box-shadow:0 0 0 7px var(--sb-running-glow0)}}
+@keyframes sb-breathe-plain{0%,100%{box-shadow:0 0 0 0 var(--sb-running-glow)}50%{box-shadow:0 0 0 7px var(--sb-running-glow0)}}
 .sb-preview{margin:3px 0 0 17px;font-size:11px;line-height:1.45;color:var(--dsw-alias-label-secondary);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all}
 .sb-preview-live{color:#7aa9ff}
 .sb-row-meta{display:inline-flex;align-items:center;gap:3px}
@@ -179,7 +183,7 @@ window.__ModuleLoader__.load({
         onClick: () => onOpen?.(row.id),
       },
         h('div', { className: 'sb-row-head' },
-          h('span', { className: 'sb-dot' + (theme.breathe && (row.status === 'running' || row.status === 'working') ? ' sb-breathe' : ''), style: { background: theme[row.status] ?? theme.idle } }),
+          h('span', { className: 'sb-dot' + (row.status === 'running' || row.status === 'working' ? (theme.breathe ? ' sb-breathe' : ' sb-breathe-plain') : ''), style: { background: theme[row.status] ?? theme.idle } }),
           h('span', { className: 'sb-row-title', title: row.id ? `${row.title} · ${row.id}` : row.title }, row.title),
           row.kind === 'sub' ? h('span', { className: 'sb-tag' }, t('Sub')) : null,
           (row.tokens != null || row.spent != null || row.ctxPct != null)
@@ -411,7 +415,12 @@ window.__ModuleLoader__.load({
                   title: badgeTitle(q),
                 },
                   q.kind === 'volc'
-                    ? ['⚡', `${q.calls ?? 0}次`, h('span', { className: 'sb-sep' }, '·'), '🪙', fmtTokens(q.tokens)]
+                    ? [
+                        '⚡',
+                        `12h ${q.calls12 ?? 0}次`,
+                        h('span', { className: 'sb-sep' }, '·'),
+                        `月 ${q.calls30 ?? 0}次`,
+                      ]
                     : [`💰¥${q.balance}`],
                 )),
                 h('button', { className: 'sb-icon', onClick: clearIdle, title: t('Clear idle') }, '🧹'),
@@ -439,14 +448,20 @@ window.__ModuleLoader__.load({
                   onChange: e => setThemeField('orbSize', Math.max(28, Math.min(96, Math.round(+e.target.value || 44)))),
                 }),
               ),
-              h('label', { className: 'sb-theme-item' }, '颜色呼吸',
+              h('label', { className: 'sb-theme-item' }, '颜色深浅',
                 h('input', {
                   type: 'checkbox',
                   checked: theme.breathe !== false,
                   onChange: e => setThemeField('breathe', e.target.checked),
+                  title: '关闭后呼吸波纹仍在，仅取消颜色深浅变化',
                 }),
               ),
               h('button', { className: 'sb-clear', onClick: resetTheme }, '默认'),
+              h('button', {
+                className: 'sb-clear',
+                onClick: () => postJSON('api/session-board/reset-stats', {}),
+                title: '清空 12小时/月 用量统计（不影响会话数据）',
+              }, '清零统计'),
             ) : null,
             data.error ? h('div', { className: 'sb-error' }, `${t('Load failed')}: ${data.error}`) : null,
             h('div', { className: 'sb-rows' },
@@ -478,7 +493,7 @@ window.__ModuleLoader__.load({
           title: t('Session Board'),
           'aria-expanded': open,
         },
-          h('span', { className: 'sb-orb-dot' + (theme.breathe && (anyRunning || anyWorking) ? ' sb-pulse' : ''), style: { background: orbColor } }),
+          h('span', { className: 'sb-orb-dot' + ((anyRunning || anyWorking) ? (theme.breathe ? ' sb-pulse' : ' sb-pulse-plain') : ''), style: { background: orbColor } }),
           active.length > 0 ? h('span', { className: 'sb-badge' }, String(active.length)) : null,
         ),
       );

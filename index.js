@@ -32,7 +32,8 @@ const MODEL_CONTEXT = {
 };
 const USAGE_DIR = join(homedir(), '.dsh', 'dsh-usage');
 const SNAPSHOTS_FILE = join(USAGE_DIR, 'provider-snapshots.json');
-const FIVE_HOUR_MS = 5 * 60 * 60 * 1000;
+const TWELVE_H_MS = 12 * 60 * 60 * 1000;
+const THIRTY_D_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Last path segment of a cwd (also the workspace name fallback).
 const cwdTail = p => String(p ?? '').split(/[\\/]/).filter(Boolean).pop() ?? '';
@@ -79,7 +80,7 @@ export function apply(ctx) {
   function loadWindow() {
     const raw = readJson(WINDOW_FILE);
     if (Array.isArray(raw)) {
-      const cutoff = Date.now() - FIVE_HOUR_MS;
+      const cutoff = Date.now() - THIRTY_D_MS;
       for (const e of raw) {
         const at = Number(e?.at);
         if (Number.isFinite(at) && at > cutoff) volcWindow.push({ at, tokens: Number(e?.tokens) || 0 });
@@ -89,7 +90,7 @@ export function apply(ctx) {
   function saveWindow(force = false) {
     if (!windowDirty && !force) return;
     if (!force && Date.now() - windowSavedAt < 30 * 1000) return;
-    volc5hPrune();
+    volcPrune();
     try {
       writeFileSync(WINDOW_FILE, JSON.stringify(volcWindow));
       windowDirty = false;
@@ -185,7 +186,7 @@ export function apply(ctx) {
       cumulative.set(id, (cumulative.get(id) ?? 0) + total);
       if (/volc/i.test(routeOf.get(id) ?? '')) {
         volcWindow.push({ at: Date.now(), tokens: total });
-        if (volcWindow.length > 500) volcWindow.splice(0, volcWindow.length - 500);
+        if (volcWindow.length > 20000) volcWindow.splice(0, volcWindow.length - 20000);
         windowDirty = true;
       }
     }
@@ -295,25 +296,28 @@ export function apply(ctx) {
     return snapCache.providers;
   }
 
-  function volc5hPrune() {
-    const cutoff = Date.now() - FIVE_HOUR_MS;
+  // Entries are kept for 30 days so monthly stats are possible; 12h is a slice.
+  function volcPrune() {
+    const cutoff = Date.now() - THIRTY_D_MS;
     while (volcWindow.length > 0 && volcWindow[0].at < cutoff) volcWindow.shift();
   }
 
-  // Requests and tokens spent inside the rolling 5h window.
-  function volc5hCalls() {
-    volc5hPrune();
-    return volcWindow.length;
-  }
-
-  function volc5hTokens() {
-    volc5hPrune();
-    return volcWindow.reduce((sum, e) => sum + e.tokens, 0);
+  // Calls and tokens for the 12h and 30d slices of the rolling window.
+  function volcStats() {
+    const c12 = Date.now() - TWELVE_H_MS;
+    volcPrune();
+    let calls12 = 0, tokens12 = 0, calls30 = 0, tokens30 = 0;
+    for (const e of volcWindow) {
+      calls30 += 1;
+      tokens30 += e.tokens;
+      if (e.at >= c12) { calls12 += 1; tokens12 += e.tokens; }
+    }
+    return { calls12, tokens12, calls30, tokens30 };
   }
 
   function providerBadge(provider) {
     if (/volc/i.test(provider ?? '')) {
-      return { kind: 'volc', calls: volc5hCalls(), tokens: volc5hTokens() };
+      return { kind: 'volc', ...volcStats() };
     }
     if (/deepseek/i.test(provider ?? '')) {
       const b = providerSnapshots()?.['deepseek-official']?.balance;
@@ -537,4 +541,17 @@ export function apply(ctx) {
       return Response.json({ ok: true });
     },
   }), 'session-board: clear-failed route');
+
+  // Reset the usage statistics (the rolling request/token window).
+  ctx.effect(() => ctx.connection.fetch.register({
+    path: '/api/session-board/reset-stats',
+    methods: ['POST'],
+    requestBody: 'buffered',
+    fetch: async () => {
+      volcWindow.length = 0;
+      windowDirty = true;
+      saveWindow(true);
+      return Response.json({ ok: true });
+    },
+  }), 'session-board: reset-stats route');
 }
