@@ -505,7 +505,7 @@ export function apply(ctx) {
     out.sort((a, b) => order[a.status] - order[b.status] || (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
     // Backfill cumulative counters (active rows first, one log read per session).
     for (const row of out) if (!cumulative.has(row.id)) queueCumulative(row.id);
-    return { rows: out.slice(0, MAX_ROWS), hidden: Math.max(0, out.length - MAX_ROWS), providers };
+    return { v: 3, rows: out.slice(0, MAX_ROWS), hidden: Math.max(0, out.length - MAX_ROWS), providers };
   }
 
   // Same-origin POST route; the browser authenticates with its session cookie.

@@ -294,18 +294,19 @@ window.__ModuleLoader__.load({
               const json = await res.json();
               if (!stop) {
                 const errMsg = json?.error ? String(json.error?.message ?? json.error) : '';
+                const staleHost = json?.ok && json?.v !== 3;
                 setData(json?.ok && !errMsg
                   ? {
                       rows: Array.isArray(json.rows) ? json.rows : [],
                       hidden: json.hidden ?? 0,
                       providers: Array.isArray(json.providers) ? json.providers : [],
-                      error: '',
+                      error: staleHost ? 'Host 端插件版本较旧：请完全退出并重启 DSH Desktop 后再使用' : '',
                     }
                   : {
                       rows: Array.isArray(json?.rows) ? json.rows : [],
                       hidden: 0,
                       providers: [],
-                      error: errMsg || 'Load failed',
+                      error: errMsg || (staleHost ? 'Host 端插件版本较旧：请完全退出并重启 DSH Desktop' : 'Load failed'),
                     });
               }
             } catch (error) {
@@ -417,7 +418,7 @@ window.__ModuleLoader__.load({
                   q.kind === 'volc'
                     ? [
                         '⚡',
-                        `12h ${q.calls12 ?? 0}次`,
+                        `12h ${q.calls12 ?? q.calls ?? 0}次`,
                         h('span', { className: 'sb-sep' }, '·'),
                         `月 ${q.calls30 ?? 0}次`,
                       ]
