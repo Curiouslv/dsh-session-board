@@ -145,6 +145,9 @@ window.__ModuleLoader__.load({
 .sb-head-actions{display:flex;align-items:center;gap:6px}
 .sb-clear{border:1px solid var(--dsw-alias-border-l2);background:none;color:var(--dsw-alias-label-secondary);font-size:11px;padding:2px 8px;border-radius:6px;cursor:pointer}
 .sb-clear:hover{color:var(--dsw-alias-label-primary)}
+.sb-icon{border:0;background:none;color:var(--dsw-alias-label-tertiary);width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:13px;line-height:1;padding:0;cursor:pointer}
+.sb-icon:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2)}
+.sb-icon-close{font-size:15px}
 .sb-x{border:0;background:none;color:var(--dsw-alias-label-tertiary);cursor:pointer;font-size:13px;line-height:1;padding:0 2px;visibility:hidden}
 .sb-row:hover .sb-x{visibility:visible}
 .sb-x:hover{color:var(--dsw-alias-label-primary)}
@@ -407,13 +410,13 @@ window.__ModuleLoader__.load({
                     ? ['⚡', `${q.calls ?? 0}次`, h('span', { className: 'sb-sep' }, '·'), '🪙', fmtTokens(q.tokens)]
                     : [`💰¥${q.balance}`],
                 )),
-                h('button', { className: 'sb-clear', onClick: clearIdle, title: t('Clear idle') }, t('Clear idle')),
+                h('button', { className: 'sb-icon', onClick: clearIdle, title: t('Clear idle') }, '🧹'),
                 h('button', {
-                  className: 'sb-clear',
+                  className: 'sb-icon',
                   onClick: () => setShowSettings(s => !s),
                   title: '自定义颜色与悬浮球',
                 }, '⚙'),
-                h('button', { className: 'sb-close', onClick: () => setOpen(false), 'aria-label': 'close' }, '×'),
+                h('button', { className: 'sb-icon sb-icon-close', onClick: () => setOpen(false), title: '关闭', 'aria-label': 'close' }, '×'),
               ),
             ),
             showSettings ? h('div', { className: 'sb-theme' },
