@@ -80,6 +80,8 @@ dsh plugin --profile desktop add https://github.com/Curiouslv/dsh-session-board
 
 数据按「每次模型调用」本地统计，窗口持久化到 `~/.dsh/dsh-usage/session-board-window.json`，重启不清零；⚙ 里的「清零统计」可随时归零。
 
+> 无需任何其他插件：用量从**安装后**开始自动累积（仅统计 provider id 含 `volc` 的会话）。
+
 ## 可选依赖
 
 - `@linxin666/dsh-usage` —— 提供DeepSeek API 余额数据（`~/.dsh/dsh-usage/provider-snapshots.json`）；未安装时余额徽标自动隐藏，其余功能不受影响
