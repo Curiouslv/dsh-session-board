@@ -103,7 +103,7 @@ window.__ModuleLoader__.load({
     );
 
     const badgeTitle = q => q?.kind === 'volc'
-      ? `火山 coding plan 近5小时窗口（本地统计）：${q.calls ?? 0} 次请求 · ${fmtTokens(q.tokens)} tokens`
+      ? `近 5 小时窗口（本地按模型调用统计）：${q.calls ?? 0} 次请求 · ${fmtTokens(q.tokens)} tokens`
       : q?.kind === 'deepseek' ? 'DeepSeek API 余额（由 dsh-usage 插件刷新）' : '';
 
     const postJSON = (route, body) => fetch(route, {
@@ -164,7 +164,7 @@ window.__ModuleLoader__.load({
 .sb-quota{flex:none;color:var(--dsw-alias-label-tertiary);font-size:11px;white-space:nowrap}
 .sb-theme{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);flex:none}
 .sb-theme-item{display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--dsw-alias-label-secondary)}
-.sb-theme-item input[type=color]{width:24px;height:18px;padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:4px;background:none;cursor:pointer}
+.sb-theme-item input[type=color]{width:20px;height:20px;padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:50%;background:none;cursor:pointer}
 .sb-theme-item input[type=number]{width:44px;font-size:11px;padding:1px 4px;border:1px solid var(--dsw-alias-border-l2);border-radius:4px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 `;
 
@@ -452,9 +452,15 @@ window.__ModuleLoader__.load({
           : null,
         h('button', {
           className: 'sb-orb',
-          style: open || anyRunning || anyBlocked || anyFailed || anyWorking
-            ? { boxShadow: `0 0 0 3px ${hexToRgba(orbColor, 0.27)}, 0 6px 20px rgba(0,0,0,.25)` }
-            : undefined,
+          // Size inline (not just the CSS var) so it can never fall back during
+          // any state change; boxShadow only when something is active.
+          style: {
+            width: theme.orbSize,
+            height: theme.orbSize,
+            ...(open || anyRunning || anyBlocked || anyFailed || anyWorking
+              ? { boxShadow: `0 0 0 3px ${hexToRgba(orbColor, 0.27)}, 0 6px 20px rgba(0,0,0,.25)` }
+              : {}),
+          },
           onPointerDown: onOrbPointerDown,
           onPointerMove: onOrbPointerMove,
           onPointerUp: onOrbPointerUp,
