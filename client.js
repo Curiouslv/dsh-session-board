@@ -294,7 +294,14 @@ window.__ModuleLoader__.load({
               const json = await res.json();
               if (!stop) {
                 const errMsg = json?.error ? String(json.error?.message ?? json.error) : '';
-                const staleHost = json?.ok && json?.v !== 3;
+                // Stale-host detection: a Host from before the 12h/30d stats
+                // (v1.16.0) has no protocol version and its volc badge lacks
+                // the calls12 field. v1.16.0+ hosts (v:3 or stats present) pass.
+                const volcBadge = (json.providers ?? []).find(q => q.kind === 'volc');
+                const staleHost = json?.ok && !errMsg && (
+                  (json.v != null && json.v < 3) ||
+                  (json.v === undefined && volcBadge != null && volcBadge.calls12 === undefined)
+                );
                 setData(json?.ok && !errMsg
                   ? {
                       rows: Array.isArray(json.rows) ? json.rows : [],
