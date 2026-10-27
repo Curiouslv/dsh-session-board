@@ -165,6 +165,8 @@ window.__ModuleLoader__.load({
 .sb-theme{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);flex:none}
 .sb-theme-item{display:inline-flex;align-items:center;gap:3px;font-size:10px;color:var(--dsw-alias-label-secondary)}
 .sb-theme-item input[type=color]{width:20px;height:20px;padding:0;border:1px solid var(--dsw-alias-border-l2);border-radius:50%;background:none;cursor:pointer}
+.sb-theme-item input[type=color]::-webkit-color-swatch-wrapper{padding:0;border:0}
+.sb-theme-item input[type=color]::-webkit-color-swatch{border:none;border-radius:50%}
 .sb-theme-item input[type=number]{width:44px;font-size:11px;padding:1px 4px;border:1px solid var(--dsw-alias-border-l2);border-radius:4px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 `;
 
