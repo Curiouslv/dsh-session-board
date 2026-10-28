@@ -44,6 +44,16 @@ const blocksText = content => Array.isArray(content)
     : '').filter(Boolean).join(' ')
   : '';
 
+// Latest non-empty reasoning paragraph, matching DSH's collapsed-thinking detail.
+const reasoningSummary = value => {
+  const paragraphs = String(value ?? '').split(/\r?\n[\t ]*\r?\n/);
+  for (let i = paragraphs.length - 1; i >= 0; i--) {
+    const text = paragraphs[i].replaceAll('**', '').replace(/\s+/g, ' ').trim();
+    if (text) return text;
+  }
+  return '';
+};
+
 function safe(fn, fallback) {
   try {
     const v = fn();
@@ -62,6 +72,8 @@ export function apply(ctx) {
   const errors = new Map();
   /** sessionId -> { kind, text, at } for the newest meaningful event (live preview). */
   const activity = new Map();
+  /** sessionId -> accumulated reasoning for the current assistant attempt. */
+  const reasoning = new Map();
   /** sessionId -> log-backed title text ('' once checked and absent). */
   const titles = new Map();
   /** sessionId -> preview of the first human prompt, used when the session has no title. */
@@ -103,6 +115,8 @@ export function apply(ctx) {
   let snapCache = { at: 0, providers: null };
   /** sessionId -> cumulative tokens consumed (all buckets), from session events. */
   const cumulative = new Map();
+  /** sessionId -> latest task timing, reset on each human prompt. */
+  const taskTimes = new Map();
 
   const sessionIdOf = request =>
     request?.agent?.session?.id ?? request?.agent?.id ?? request?.sessionId;
@@ -166,6 +180,10 @@ export function apply(ctx) {
 
   function noteEvent(sessionId, event) {
     const id = String(sessionId);
+    if (event?.type === 'user/message' || event?.type === 'llm/retry') reasoning.delete(id);
+    if (event?.type === 'user/message') {
+      taskTimes.set(id, { startedAt: Date.now(), endedAt: null, ran: false });
+    }
     if (event?.type === 'request/header') {
       const provider = String(event.data?.header?.config?.provider ?? event.data?.config?.provider ?? '');
       if (provider) routeOf.set(id, provider);
@@ -200,6 +218,26 @@ export function apply(ctx) {
       // observation only; never disturb the session append path
     }
   }), 'session-board: live activity');
+
+  function noteAssistantStream(payload) {
+    const id = payload?.agent?.session?.id ?? payload?.agent?.id;
+    const frame = payload?.frame;
+    if (!id) return;
+    if (frame?.type === 'start') {
+      reasoning.delete(String(id));
+      return;
+    }
+    const chunk = frame?.type === 'chunk' ? frame.chunk : null;
+    if (chunk?.type !== 'reasoning-delta' || !chunk.text) return;
+    const key = String(frame.attemptId ?? '');
+    const previous = reasoning.get(String(id));
+    const text = (previous?.key === key ? previous.text : '') + String(chunk.text);
+    reasoning.set(String(id), { key, text });
+  }
+
+  ctx.effect(() => ctx.on('agent/assistant-stream', payload => {
+    try { noteAssistantStream(payload); } catch {}
+  }, { global: true }), 'session-board: live reasoning');
 
   // Safety net: a session already running before this plugin loaded has no
   // cached preview, so seed it from the tail of its own log once.
@@ -336,18 +374,8 @@ export function apply(ctx) {
       const provider = String(header?.config?.provider ?? '');
       const model = String(header?.config?.model ?? '');
       const win = MODEL_CONTEXT[model];
-      // Live "collapsed thinking" line: newest assistant content on the surface,
-      // including in-flight streaming text while the model is mid-thought.
-      let liveText = null;
-      const nodes = safe(() => s.surface?.nodes, null);
-      if (Array.isArray(nodes)) {
-        for (let i = nodes.length - 1; i >= 0 && i >= nodes.length - 4; i--) {
-          const msg = nodes[i]?.message ?? null;
-          if (!msg || msg.role !== 'assistant') continue;
-          const text = blocksText(msg.content);
-          if (text) { liveText = text; break; }
-        }
-      }
+      // Streaming reasoning takes precedence over tool/user activity below.
+      const liveText = reasoningSummary(reasoning.get(sessionId)?.text) || null;
       return {
         tokens,
         provider,
@@ -459,6 +487,16 @@ export function apply(ctx) {
       else if (bgJobs.length > 0) status = 'working'; // turn ended, background jobs still going
       if (status === 'running' || status === 'blocked') errors.delete(row.id); // it recovered
 
+      let timing = taskTimes.get(row.id);
+      if (!timing && running) {
+        timing = { startedAt: now, endedAt: null, ran: true };
+        taskTimes.set(row.id, timing);
+      }
+      if (timing) {
+        if (running) timing.ran = true;
+        else if (timing.ran && timing.endedAt == null) timing.endedAt = now;
+      }
+
       const updatedAt = row.updatedAt ?? (l ? now : null);
       if (status === 'idle' && !(updatedAt && now - updatedAt < RECENT_MS)) continue;
 
@@ -482,16 +520,20 @@ export function apply(ctx) {
         provider: u?.provider ?? '',
         model: u?.model ?? '',
         updatedAt,
+        taskStartedAt: timing?.startedAt ?? null,
+        taskEndedAt: timing?.endedAt ?? null,
       });
     }
 
     // Drop cached previews of sessions that are no longer tracked.
     for (const id of activity.keys()) if (!seen.has(id)) activity.delete(id);
+    for (const id of reasoning.keys()) if (!seen.has(id)) reasoning.delete(id);
     for (const id of titles.keys()) if (!seen.has(id)) titles.delete(id);
     for (const id of firstPrompt.keys()) if (!seen.has(id)) firstPrompt.delete(id);
     for (const id of firstPromptAt.keys()) if (!seen.has(id)) firstPromptAt.delete(id);
     for (const id of routeOf.keys()) if (!seen.has(id)) routeOf.delete(id);
     for (const id of cumulative.keys()) if (!seen.has(id)) cumulative.delete(id);
+    for (const id of taskTimes.keys()) if (!seen.has(id)) taskTimes.delete(id);
 
     // Account-level badges, always available in the header: volc (this
     // machine's coding plan) and deepseek when a balance snapshot exists.

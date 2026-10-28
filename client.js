@@ -85,6 +85,17 @@ window.__ModuleLoader__.load({
       return t('ago', { t: v });
     };
 
+    const fmtDuration = (start, end) => {
+      if (!start) return '';
+      const total = Math.max(0, Math.floor(((end ?? Date.now()) - start) / 1000));
+      const hh = Math.floor(total / 3600);
+      const mm = Math.floor(total / 60) % 60;
+      const ss = total % 60;
+      return hh
+        ? `${hh}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+        : `${mm}:${String(ss).padStart(2, '0')}`;
+    };
+
     const cwdTail = cwd => {
       if (!cwd) return '';
       const parts = String(cwd).split(/[\\/]/).filter(Boolean);
@@ -177,6 +188,7 @@ window.__ModuleLoader__.load({
 `;
 
     function BoardRow({ row, t, onDismiss, onOpen, active, theme }) {
+      const duration = fmtDuration(row.taskStartedAt, row.taskEndedAt);
       return h('div', {
         className: 'sb-row' + (active ? ' sb-row-active' : ''),
         key: row.id,
@@ -213,9 +225,13 @@ window.__ModuleLoader__.load({
           ? h('div', { className: 'sb-preview' + (row.status === 'running' ? ' sb-preview-live' : ''), title: row.preview || undefined },
               row.preview || t('Thinking'))
           : null,
-        (row.workspace || row.cwd || row.updatedAt)
+        (row.workspace || row.cwd || row.updatedAt || duration)
           ? h('div', { className: 'sb-row-sub' },
-            [row.workspace || cwdTail(row.cwd), fmtAgo(row.updatedAt, t)].filter(Boolean).join(' · '))
+            [
+              row.workspace || cwdTail(row.cwd),
+              fmtAgo(row.updatedAt, t),
+              duration ? `⏱️ ${duration}` : '',
+            ].filter(Boolean).join(' · '))
           : null,
         row.detail
           ? h('div', { className: `sb-row-detail sb-detail-${row.status}`, title: row.detail }, row.detail)
@@ -424,10 +440,9 @@ window.__ModuleLoader__.load({
                 },
                   q.kind === 'volc'
                     ? [
-                        '⚡',
-                        `12h ${q.calls12 ?? q.calls ?? 0}次`,
+                        `🕒 ${q.calls12 ?? q.calls ?? 0}`,
                         h('span', { className: 'sb-sep' }, '·'),
-                        `月 ${q.calls30 ?? 0}次`,
+                        `📅 ${q.calls30 ?? 0}`,
                       ]
                     : [`💰¥${q.balance}`],
                 )),
