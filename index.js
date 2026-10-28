@@ -515,11 +515,11 @@ export function apply(ctx) {
       const act = activity.get(row.id);
       const u = usageOf(row.id);
       // Multi-line preview: last thinking paragraphs, then answer/summary (or tool) tail.
-      const lines = reasoningLines(reasoning.get(row.id)?.text, 5);
+      const lines = reasoningLines(reasoning.get(row.id)?.text, 3);
       const answer = answers.get(row.id);
       if (answer) lines.push(answer.slice(0, 200));
       else if (act?.kind === 'tool') lines.push(act.text);
-      if (lines.length > 5) lines.splice(0, lines.length - 5);
+      if (lines.length > 3) lines.splice(0, lines.length - 3);
       out.push({
         id: row.id,
         title: row.title,

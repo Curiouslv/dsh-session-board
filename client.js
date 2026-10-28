@@ -37,6 +37,15 @@ window.__ModuleLoader__.load({
       } catch {}
       return { right: 18, bottom: 18 };
     };
+    const SIZE_KEY = 'sb-panel-size';
+    const loadSize = () => {
+      try {
+        const s = JSON.parse(localStorage.getItem(SIZE_KEY));
+        if (s && Number.isFinite(s.w) && Number.isFinite(s.h) && Number.isFinite(s.b)
+          && s.w >= 280 && s.h >= 200 && s.b >= 40) return s;
+      } catch {}
+      return { w: 350, h: null, b: null };
+    };
 
     const ZH = {
       'Session Board': '会话看板',
@@ -139,7 +148,7 @@ window.__ModuleLoader__.load({
 .sb-panel-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-weight:600;font-size:13px;flex:none}
 .sb-close{border:0;background:none;color:var(--dsw-alias-label-tertiary);font-size:16px;cursor:pointer;line-height:1;padding:2px 6px}
 .sb-close:hover{color:var(--dsw-alias-label-primary)}
-.sb-rows{overflow-y:auto;padding:2px 0}
+.sb-rows{flex:1;min-height:0;overflow-y:auto;padding:2px 0}
 .sb-row{padding:8px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);cursor:pointer}
 .sb-row-active{background:var(--dsw-alias-bg-layer-2);box-shadow:inset 2px 0 0 var(--sb-running)}
 .sb-row:last-child{border-bottom:0}
@@ -162,6 +171,8 @@ window.__ModuleLoader__.load({
 .sb-icon{border:0;background:none;color:var(--dsw-alias-label-tertiary);width:22px;height:22px;border-radius:6px;display:grid;place-items:center;font-size:13px;line-height:1;padding:0;cursor:pointer}
 .sb-icon:hover{color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2)}
 .sb-icon-close{font-size:15px}
+.sb-resize{position:absolute;left:0;bottom:0;width:16px;height:16px;cursor:nesw-resize;touch-action:none;z-index:2}
+.sb-resize::before{content:'';position:absolute;left:3px;bottom:3px;width:8px;height:8px;border-left:2px solid var(--dsw-alias-border-l2);border-bottom:2px solid var(--dsw-alias-border-l2)}
 .sb-x{border:0;background:none;color:var(--dsw-alias-label-tertiary);cursor:pointer;font-size:13px;line-height:1;padding:0 2px;visibility:hidden}
 .sb-row:hover .sb-x{visibility:visible}
 .sb-x:hover{color:var(--dsw-alias-label-primary)}
@@ -169,7 +180,7 @@ window.__ModuleLoader__.load({
 .sb-dot.sb-breathe-plain{animation:sb-breathe-plain 2.2s ease-in-out infinite}
 @keyframes sb-breathe{0%,100%{filter:brightness(1);box-shadow:0 0 0 0 var(--sb-running-glow)}50%{filter:brightness(1.9) saturate(.85);box-shadow:0 0 0 7px var(--sb-running-glow0)}}
 @keyframes sb-breathe-plain{0%,100%{box-shadow:0 0 0 0 var(--sb-running-glow)}50%{box-shadow:0 0 0 7px var(--sb-running-glow0)}}
-.sb-preview{margin:3px 0 0 17px;font-size:11px;line-height:1.45;color:var(--dsw-alias-label-secondary);display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all;white-space:pre-line}
+.sb-preview{margin:3px 0 0 17px;font-size:11px;line-height:1.45;color:var(--dsw-alias-label-secondary);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all;white-space:pre-line}
 .sb-preview-live{color:#7aa9ff}
 .sb-row-meta{display:inline-flex;align-items:center;gap:3px}
 .sb-ring{width:12px;height:12px;transform:rotate(-90deg);flex:none}
@@ -279,6 +290,42 @@ window.__ModuleLoader__.load({
       const [theme, setTheme] = React.useState(loadTheme);
       const themeRef = React.useRef(theme);
       themeRef.current = theme;
+      const [size, setSize] = React.useState(loadSize);
+      const sizeRef = React.useRef(size);
+      sizeRef.current = size;
+      const sizeDrag = React.useRef(null);
+      const onResizeDown = e => {
+        if (e.button !== 0) return;
+        const panel = e.currentTarget.parentElement;
+        sizeDrag.current = {
+          sx: e.clientX, sy: e.clientY,
+          w: sizeRef.current.w,
+          h: sizeRef.current.h ?? panel.offsetHeight,
+          b: sizeRef.current.b ?? themeRef.current.orbSize + 10,
+          moved: false,
+        };
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+      };
+      const onResizeMove = e => {
+        const d = sizeDrag.current;
+        if (!d) return;
+        const dx = e.clientX - d.sx, dy = e.clientY - d.sy;
+        if (!d.moved && Math.hypot(dx, dy) < 4) return;
+        d.moved = true;
+        const orb = themeRef.current.orbSize;
+        const w = Math.min(Math.max(280, d.w - dx), window.innerWidth - 40);
+        const h = Math.min(Math.max(200, d.h + dy), window.innerHeight - 80);
+        const b = Math.min(Math.max(orb + 6, d.b - dy), Math.max(orb + 6, window.innerHeight - h - 40));
+        setSize({ w, h, b });
+      };
+      const onResizeUp = e => {
+        const d = sizeDrag.current;
+        sizeDrag.current = null;
+        try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+        if (d?.moved) {
+          try { localStorage.setItem(SIZE_KEY, JSON.stringify(sizeRef.current)); } catch {}
+        }
+      };
       const [showSettings, setShowSettings] = React.useState(false);
       const setThemeField = (k, v) => setTheme(t => {
         const n = { ...t, [k]: v };
@@ -423,13 +470,23 @@ window.__ModuleLoader__.load({
         '--sb-failed': theme.failed,
         '--sb-idle': theme.idle,
         '--sb-orb-size': `${theme.orbSize}px`,
-        '--sb-panel-bottom': `${theme.orbSize + 10}px`,
+        '--sb-panel-bottom': `${size.b ?? theme.orbSize + 10}px`,
       };
 
       return h('div', { className: 'sb-root', style: { right: pos.right, bottom: pos.bottom, ...cssVars } },
         h('style', null, CSS),
         open
-          ? h('div', { className: 'sb-panel', role: 'dialog', 'aria-label': t('Session Board') },
+          ? h('div', {
+              className: 'sb-panel', role: 'dialog', 'aria-label': t('Session Board'),
+              style: { width: size.w, ...(size.h ? { height: size.h, maxHeight: 'none' } : {}) },
+            },
+            h('div', {
+              className: 'sb-resize',
+              onPointerDown: onResizeDown,
+              onPointerMove: onResizeMove,
+              onPointerUp: onResizeUp,
+              title: '拖拽调整面板大小',
+            }),
             h('div', { className: 'sb-panel-head' },
               h('span', null, t('Session Board')),
               h('div', { className: 'sb-head-actions' },
