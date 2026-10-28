@@ -169,7 +169,7 @@ window.__ModuleLoader__.load({
 .sb-dot.sb-breathe-plain{animation:sb-breathe-plain 2.2s ease-in-out infinite}
 @keyframes sb-breathe{0%,100%{filter:brightness(1);box-shadow:0 0 0 0 var(--sb-running-glow)}50%{filter:brightness(1.9) saturate(.85);box-shadow:0 0 0 7px var(--sb-running-glow0)}}
 @keyframes sb-breathe-plain{0%,100%{box-shadow:0 0 0 0 var(--sb-running-glow)}50%{box-shadow:0 0 0 7px var(--sb-running-glow0)}}
-.sb-preview{margin:3px 0 0 17px;font-size:11px;line-height:1.45;color:var(--dsw-alias-label-secondary);display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all}
+.sb-preview{margin:3px 0 0 17px;font-size:11px;line-height:1.45;color:var(--dsw-alias-label-secondary);display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all;white-space:pre-line}
 .sb-preview-live{color:#7aa9ff}
 .sb-row-meta{display:inline-flex;align-items:center;gap:3px}
 .sb-ring{width:12px;height:12px;transform:rotate(-90deg);flex:none}

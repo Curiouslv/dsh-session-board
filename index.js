@@ -44,15 +44,21 @@ const blocksText = content => Array.isArray(content)
     : '').filter(Boolean).join(' ')
   : '';
 
-// Latest non-empty reasoning paragraph, matching DSH's collapsed-thinking detail.
-const reasoningSummary = value => {
+// Last few non-empty reasoning paragraphs for the multi-line thinking preview.
+const reasoningLines = (value, max) => {
   const paragraphs = String(value ?? '').split(/\r?\n[\t ]*\r?\n/);
-  for (let i = paragraphs.length - 1; i >= 0; i--) {
+  const lines = [];
+  for (let i = paragraphs.length - 1; i >= 0 && lines.length < max; i--) {
     const text = paragraphs[i].replaceAll('**', '').replace(/\s+/g, ' ').trim();
-    if (text) return text;
+    if (text) lines.unshift(text.slice(0, 200));
   }
-  return '';
+  return lines;
 };
+
+// Text-only content of an assistant message: the answer/summary, reasoning excluded.
+const answerText = content => Array.isArray(content)
+  ? content.map(b => b?.type === 'text' ? String(b.text ?? '') : '').filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
+  : '';
 
 function safe(fn, fallback) {
   try {
@@ -74,6 +80,8 @@ export function apply(ctx) {
   const activity = new Map();
   /** sessionId -> accumulated reasoning for the current assistant attempt. */
   const reasoning = new Map();
+  /** sessionId -> latest assistant answer/summary (thinking excluded). */
+  const answers = new Map();
   /** sessionId -> log-backed title text ('' once checked and absent). */
   const titles = new Map();
   /** sessionId -> preview of the first human prompt, used when the session has no title. */
@@ -180,7 +188,14 @@ export function apply(ctx) {
 
   function noteEvent(sessionId, event) {
     const id = String(sessionId);
-    if (event?.type === 'user/message' || event?.type === 'llm/retry') reasoning.delete(id);
+    if (event?.type === 'user/message' || event?.type === 'llm/retry') {
+      reasoning.delete(id);
+      answers.delete(id);
+    }
+    if (event?.type === 'assistant/message') {
+      const answer = answerText(event.data?.message?.content);
+      if (answer) answers.set(id, answer);
+    }
     if (event?.type === 'user/message') {
       taskTimes.set(id, { startedAt: Date.now(), endedAt: null, ran: false });
     }
@@ -374,13 +389,10 @@ export function apply(ctx) {
       const provider = String(header?.config?.provider ?? '');
       const model = String(header?.config?.model ?? '');
       const win = MODEL_CONTEXT[model];
-      // Streaming reasoning takes precedence over tool/user activity below.
-      const liveText = reasoningSummary(reasoning.get(sessionId)?.text) || null;
       return {
         tokens,
         provider,
         model,
-        liveText,
         ...(tokens != null && win ? { pct: Math.min(100, tokens / win * 100) } : {}),
       };
     }, null);
@@ -502,6 +514,12 @@ export function apply(ctx) {
 
       const act = activity.get(row.id);
       const u = usageOf(row.id);
+      // Multi-line preview: last thinking paragraphs, then answer/summary (or tool) tail.
+      const lines = reasoningLines(reasoning.get(row.id)?.text, 5);
+      const answer = answers.get(row.id);
+      if (answer) lines.push(answer.slice(0, 200));
+      else if (act?.kind === 'tool') lines.push(act.text);
+      if (lines.length > 5) lines.splice(0, lines.length - 5);
       out.push({
         id: row.id,
         title: row.title,
@@ -511,7 +529,7 @@ export function apply(ctx) {
         status,
         detail: status === 'blocked' ? (blockedEntry?.detail ?? '')
           : status === 'failed' ? (errors.get(row.id)?.message ?? '') : '',
-        preview: status === 'running' || status === 'blocked' ? (u?.liveText || act?.text || '')
+        preview: status === 'running' || status === 'blocked' ? (lines.join('\n') || act?.text || '')
           : status === 'working' ? `后台任务: ${bgJobs.join('、')}` : '',
         previewKind: act?.kind ?? '',
         tokens: u?.tokens ?? null,
@@ -528,6 +546,7 @@ export function apply(ctx) {
     // Drop cached previews of sessions that are no longer tracked.
     for (const id of activity.keys()) if (!seen.has(id)) activity.delete(id);
     for (const id of reasoning.keys()) if (!seen.has(id)) reasoning.delete(id);
+    for (const id of answers.keys()) if (!seen.has(id)) answers.delete(id);
     for (const id of titles.keys()) if (!seen.has(id)) titles.delete(id);
     for (const id of firstPrompt.keys()) if (!seen.has(id)) firstPrompt.delete(id);
     for (const id of firstPromptAt.keys()) if (!seen.has(id)) firstPromptAt.delete(id);
