@@ -356,7 +356,7 @@ export function apply(ctx) {
 
   // Provider snapshots maintained live by @linxin666/dsh-usage (DeepSeek balance etc.).
   function providerSnapshots() {
-    if (Date.now() - snapCache.at > 5 * 60 * 1000) {
+    if (Date.now() - snapCache.at > 60 * 1000) {
       snapCache = { at: Date.now(), providers: readJson(SNAPSHOTS_FILE)?.providers ?? null };
     }
     return snapCache.providers;
@@ -570,8 +570,9 @@ export function apply(ctx) {
       if (b) providers.push(b);
     }
 
-    const order = { blocked: 0, running: 1, working: 2, failed: 3, idle: 4 };
-    out.sort((a, b) => order[a.status] - order[b.status] || (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+    // Recency order: running sessions update constantly, so they stay on top;
+    // a just-finished session keeps its place until others actually advance.
+    out.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
     // Backfill cumulative counters (active rows first, one log read per session).
     for (const row of out) if (!cumulative.has(row.id)) queueCumulative(row.id);
     return { v: 3, rows: out.slice(0, MAX_ROWS), hidden: Math.max(0, out.length - MAX_ROWS), providers };
