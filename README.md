@@ -1,8 +1,10 @@
 # dsh-session-board
 
-DSH Desktop（DeepSeek Harness）的**会话看板**插件：右下角一颗可拖拽的悬浮球，展开后一览所有工作区的活跃会话——谁在运行、在想什么、后台还挂着什么、等谁审批、上下文烧了多少，点击直达会话。
+DSH Desktop（DeepSeek Harness）的**会话看板**插件：右下角一颗可拖拽的悬浮球，展开后一览所有工作区的活跃会话——谁在运行、在想什么、后台还挂着什么、等谁审批、上下文烧了多少，实时显示每个任务的思考与执行进展，点击直达会话。
 
 > 用量为本地统计估算，仅供个人参考；不构成任何投资或消费建议。
+>
+> **最近更新（v1.16.15）**：实时进展预览（思考 / 回答 / 工具结果的尾部窗口，可拉高）、任务耗时 ⏱️、面板可拖动与调宽高、🕒 12h / 📅 30 天用量徽标、按最近活动排序、当前会话高亮。
 
 ## 功能
 
@@ -91,7 +93,7 @@ dsh plugin --profile desktop add https://github.com/Curiouslv/dsh-session-board
 
 ## 可选依赖
 
-- `@linxin666/dsh-usage` —— 提供DeepSeek API 余额数据（`~/.dsh/dsh-usage/provider-snapshots.json`）；未安装时余额徽标自动隐藏，其余功能不受影响
+- `@linxin666/dsh-usage` —— 提供DeepSeek API 余额数据（`~/.dsh/dsh-usage/provider-snapshots.json`）；未安装时余额徽标自动隐藏，其余功能不受影响。需在 profile `bundles` 中加载 `"@linxin666/dsh-usage"`，其宿主端每 60s 自动刷新快照
 
 ## 已知限制
 
@@ -99,6 +101,7 @@ dsh plugin --profile desktop add https://github.com/Curiouslv/dsh-session-board
 - **用量口径**：按「每次模型调用」本地统计。与厂商控制台的统计口径如有差异，以控制台为准
 - **流式粒度**：思考预览来自 Host 原生 `agent/assistant-stream` 流；面板打开且有会话活动时以 0.3s 轮询刷新（空闲时 1.2s，面板收起 2.5s），无法做到与主界面逐帧同步；新的模型尝试开始会清除上一段思考
 - 火山用量徽标匹配 provider id 含 `volc` 的会话，其他厂商不受影响
+- **排序时间戳**：实时活动 / 任务完成时间保存在插件内存中；DSH 重启后，重启前刚完成的任务会回退为会话创建时间参与排序
 
 ## License
 
