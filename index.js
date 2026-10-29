@@ -570,9 +570,11 @@ export function apply(ctx) {
       if (b) providers.push(b);
     }
 
-    // Recency order: running sessions update constantly, so they stay on top;
-    // a just-finished session keeps its place until others actually advance.
-    out.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+    // Live sessions (running / blocked) stay pinned on top; everything else
+    // sorts by last activity, so a just-finished task still ranks above
+    // stale failed/working rows.
+    const liveFirst = r => r.status === 'running' || r.status === 'blocked' ? 0 : 1;
+    out.sort((a, b) => liveFirst(a) - liveFirst(b) || (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
     // Backfill cumulative counters (active rows first, one log read per session).
     for (const row of out) if (!cumulative.has(row.id)) queueCumulative(row.id);
     return { v: 3, rows: out.slice(0, MAX_ROWS), hidden: Math.max(0, out.length - MAX_ROWS), providers };
