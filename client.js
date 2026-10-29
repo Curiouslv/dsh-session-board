@@ -210,11 +210,23 @@ window.__ModuleLoader__.load({
     // 3-line tail window: newest preview text stays visible while streaming.
     const PreviewTail = ({ text, className }) => {
       const ref = React.useRef(null);
+      const down = React.useRef(null);
       React.useLayoutEffect(() => {
         const el = ref.current;
         if (el) el.scrollTop = el.scrollHeight;
       }, [text]);
-      return h('div', { ref, className, title: text, onClick: e => e.stopPropagation() }, text);
+      return h('div', {
+        ref, className, title: text,
+        onPointerDown: e => { down.current = { x: e.clientX, y: e.clientY }; },
+        onClick: e => {
+          const start = down.current;
+          down.current = null;
+          if (start && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 4) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        },
+      }, text);
     };
 
     function BoardRow({ row, t, onDismiss, onOpen, active, theme }) {

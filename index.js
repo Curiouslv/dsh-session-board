@@ -450,7 +450,10 @@ export function apply(ctx) {
           title: titleOf(key, rec?.cwd ?? rec?.header?.cwd ?? rec?.directory),
           cwd: String(rec?.cwd ?? rec?.header?.cwd ?? rec?.directory ?? '').slice(0, 200),
           workspaceId: rec?.workspaceId ?? rec?.header?.workspaceId ?? null,
-          updatedAt: Number(rec?.updatedAt ?? rec?.lastActivityAt ?? rec?.activityAt ?? 0) || null,
+          updatedAt: Number(
+            rec?.updatedAt ?? rec?.lastActivityAt ?? rec?.activityAt
+            ?? rec?.header?.updatedAt ?? rec?.header?.lastActivityAt ?? rec?.header?.createdAt ?? 0
+          ) || null,
         });
       }
     }
@@ -529,15 +532,19 @@ export function apply(ctx) {
       }
 
       const act = activity.get(row.id);
-      const updatedAt = latestTime(
+      const activityAt = latestTime(
         row.updatedAt,
         act?.at,
         timing?.startedAt,
         timing?.endedAt,
         reasoning.get(row.id)?.at,
         answers.get(row.id)?.at,
-      ) ?? (status !== 'idle' ? now : null);
-      if (status === 'idle' && !(updatedAt && now - updatedAt < RECENT_MS)) continue;
+      );
+      // Keep live idle sessions visible, but never let a synthetic "now" make
+      // them outrank a task that actually finished more recently.
+      const updatedAt = activityAt ?? (l ? now : null);
+      const sortAt = activityAt ?? (status !== 'idle' ? now : null);
+      if (status === 'idle' && !l && !(updatedAt && now - updatedAt < RECENT_MS)) continue;
 
       const u = usageOf(row.id);
       const parts = previewParts(reasoning.get(row.id), answers.get(row.id), act);
@@ -559,6 +566,7 @@ export function apply(ctx) {
         provider: u?.provider ?? '',
         model: u?.model ?? '',
         updatedAt,
+        sortAt,
         taskStartedAt: timing?.startedAt ?? null,
         taskEndedAt: timing?.endedAt ?? null,
       });
@@ -587,7 +595,7 @@ export function apply(ctx) {
     // sorts by last activity, so a just-finished task still ranks above
     // stale failed/working rows.
     const liveFirst = r => r.status === 'running' || r.status === 'blocked' ? 0 : 1;
-    out.sort((a, b) => liveFirst(a) - liveFirst(b) || (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
+    out.sort((a, b) => liveFirst(a) - liveFirst(b) || (b.sortAt ?? 0) - (a.sortAt ?? 0));
     // Backfill cumulative counters (active rows first, one log read per session).
     for (const row of out) if (!cumulative.has(row.id)) queueCumulative(row.id);
     return { v: 3, rows: out.slice(0, MAX_ROWS), hidden: Math.max(0, out.length - MAX_ROWS), providers };
