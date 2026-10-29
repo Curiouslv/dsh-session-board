@@ -59,6 +59,12 @@ const previewParts = (think, answer, act) => {
   return parts.filter(Boolean);
 };
 
+// Latest known activity across durable records and plugin-local live events.
+const latestTime = (...values) => {
+  const latest = Math.max(0, ...values.map(value => Number(value) || 0));
+  return latest || null;
+};
+
 // Text-only content of an assistant message: the answer/summary, reasoning excluded.
 const answerText = content => Array.isArray(content)
   ? content.map(b => b?.type === 'text' ? String(b.text ?? '') : '').filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
@@ -522,7 +528,7 @@ export function apply(ctx) {
         else if (timing.ran && timing.endedAt == null) timing.endedAt = now;
       }
 
-      const updatedAt = row.updatedAt ?? (l ? now : null);
+      const updatedAt = row.updatedAt ?? (status !== 'idle' ? now : null);
       if (status === 'idle' && !(updatedAt && now - updatedAt < RECENT_MS)) continue;
 
       const act = activity.get(row.id);
@@ -545,7 +551,13 @@ export function apply(ctx) {
         spent: cumulative.get(row.id) ?? null,
         provider: u?.provider ?? '',
         model: u?.model ?? '',
-        updatedAt,
+        updatedAt: latestTime(
+          updatedAt,
+          act?.at,
+          timing?.endedAt,
+          reasoning.get(row.id)?.at,
+          answers.get(row.id)?.at,
+        ),
         taskStartedAt: timing?.startedAt ?? null,
         taskEndedAt: timing?.endedAt ?? null,
       });
