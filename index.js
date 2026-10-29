@@ -194,7 +194,7 @@ export function apply(ctx) {
     }
     if (event?.type === 'assistant/message') {
       const answer = answerText(event.data?.message?.content);
-      if (answer) answers.set(id, answer);
+      if (answer) answers.set(id, { key: '', text: answer });
     }
     if (event?.type === 'user/message') {
       taskTimes.set(id, { startedAt: Date.now(), endedAt: null, ran: false });
@@ -240,14 +240,18 @@ export function apply(ctx) {
     if (!id) return;
     if (frame?.type === 'start') {
       reasoning.delete(String(id));
+      answers.delete(String(id));
       return;
     }
     const chunk = frame?.type === 'chunk' ? frame.chunk : null;
-    if (chunk?.type !== 'reasoning-delta' || !chunk.text) return;
+    if (!chunk?.text) return;
+    const store = chunk.type === 'reasoning-delta' ? reasoning
+      : chunk.type === 'text-delta' ? answers : null;
+    if (!store) return;
     const key = String(frame.attemptId ?? '');
-    const previous = reasoning.get(String(id));
+    const previous = store.get(String(id));
     const text = (previous?.key === key ? previous.text : '') + String(chunk.text);
-    reasoning.set(String(id), { key, text });
+    store.set(String(id), { key, text });
   }
 
   ctx.effect(() => ctx.on('agent/assistant-stream', payload => {
@@ -516,7 +520,7 @@ export function apply(ctx) {
       const u = usageOf(row.id);
       // Multi-line preview: last thinking paragraphs, then answer/summary (or tool) tail.
       const lines = reasoningLines(reasoning.get(row.id)?.text, 3);
-      const answer = answers.get(row.id);
+      const answer = answers.get(row.id)?.text;
       if (answer) lines.push(answer.slice(0, 200));
       else if (act?.kind === 'tool') lines.push(act.text);
       if (lines.length > 3) lines.splice(0, lines.length - 3);
