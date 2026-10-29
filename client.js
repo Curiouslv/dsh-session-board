@@ -47,6 +47,14 @@ window.__ModuleLoader__.load({
       } catch {}
       return { w: 350, h: null, b: null };
     };
+    const PANEL_POS_KEY = 'sb-panel-pos';
+    const loadPanelPos = () => {
+      try {
+        const p = JSON.parse(localStorage.getItem(PANEL_POS_KEY));
+        if (p && Number.isFinite(p.dx) && Number.isFinite(p.dy)) return p;
+      } catch {}
+      return { dx: 0, dy: 0 };
+    };
 
     const ZH = {
       'Session Board': '会话看板',
@@ -146,7 +154,7 @@ window.__ModuleLoader__.load({
 @keyframes sb-pulse-plain{0%,100%{box-shadow:0 0 0 0 var(--sb-running-glow)}50%{box-shadow:0 0 0 9px var(--sb-running-glow0)}}
 .sb-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:var(--sb-running);color:#fff;font-size:11px;font-weight:600;line-height:18px;text-align:center;box-sizing:border-box}
 .sb-panel{position:absolute;right:0;bottom:var(--sb-panel-bottom);width:350px;max-height:min(64vh,560px);display:flex;flex-direction:column;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-3);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.28);overflow:hidden;text-align:left}
-.sb-panel-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-weight:600;font-size:13px;flex:none}
+.sb-panel-head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary);font-weight:600;font-size:13px;flex:none;touch-action:none;cursor:grab}
 .sb-close{border:0;background:none;color:var(--dsw-alias-label-tertiary);font-size:16px;cursor:pointer;line-height:1;padding:2px 6px}
 .sb-close:hover{color:var(--dsw-alias-label-primary)}
 .sb-rows{flex:1;min-height:0;overflow-y:auto;padding:2px 0}
@@ -340,6 +348,41 @@ window.__ModuleLoader__.load({
           try { localStorage.setItem(SIZE_KEY, JSON.stringify(sizeRef.current)); } catch {}
         }
       };
+      const [panelPos, setPanelPos] = React.useState(loadPanelPos);
+      const panelPosRef = React.useRef(panelPos);
+      panelPosRef.current = panelPos;
+      const panelDrag = React.useRef(null);
+      const onPanelDragDown = e => {
+        if (e.button !== 0 || e.target.closest('button')) return;
+        const rect = e.currentTarget.parentElement.getBoundingClientRect();
+        const cur = panelPosRef.current;
+        panelDrag.current = {
+          sx: e.clientX, sy: e.clientY,
+          dx: cur.dx, dy: cur.dy,
+          minX: 8 - rect.left - cur.dx, maxX: window.innerWidth - 8 - rect.right - cur.dx,
+          minY: 8 - rect.top - cur.dy, maxY: window.innerHeight - 8 - rect.bottom - cur.dy,
+          moved: false,
+        };
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+      };
+      const onPanelDragMove = e => {
+        const d = panelDrag.current;
+        if (!d) return;
+        const clamp = (v, lo, hi) => Math.round(Math.min(hi, Math.max(lo, v)));
+        const ndx = clamp(d.dx + e.clientX - d.sx, d.minX, d.maxX);
+        const ndy = clamp(d.dy + e.clientY - d.sy, d.minY, d.maxY);
+        if (!d.moved && ndx === d.dx && ndy === d.dy) return;
+        d.moved = true;
+        setPanelPos({ dx: ndx, dy: ndy });
+      };
+      const onPanelDragUp = e => {
+        const d = panelDrag.current;
+        panelDrag.current = null;
+        try { e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
+        if (d?.moved) {
+          try { localStorage.setItem(PANEL_POS_KEY, JSON.stringify(panelPosRef.current)); } catch {}
+        }
+      };
       const [showSettings, setShowSettings] = React.useState(false);
       const setThemeField = (k, v) => setTheme(t => {
         const n = { ...t, [k]: v };
@@ -494,7 +537,11 @@ window.__ModuleLoader__.load({
         open
           ? h('div', {
               className: 'sb-panel', role: 'dialog', 'aria-label': t('Session Board'),
-              style: { width: size.w, ...(size.h ? { height: size.h, maxHeight: 'none' } : {}) },
+              style: {
+                width: size.w,
+                transform: `translate(${panelPos.dx}px, ${panelPos.dy}px)`,
+                ...(size.h ? { height: size.h, maxHeight: 'none' } : {}),
+              },
             },
             h('div', {
               className: 'sb-resize',
@@ -503,7 +550,12 @@ window.__ModuleLoader__.load({
               onPointerUp: onResizeUp,
               title: '拖拽调整面板大小',
             }),
-            h('div', { className: 'sb-panel-head' },
+            h('div', {
+              className: 'sb-panel-head',
+              onPointerDown: onPanelDragDown,
+              onPointerMove: onPanelDragMove,
+              onPointerUp: onPanelDragUp,
+            },
               h('span', null, t('Session Board')),
               h('div', { className: 'sb-head-actions' },
                 (data.providers ?? []).map((q, i) => h('span', {
