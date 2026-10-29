@@ -181,7 +181,7 @@ window.__ModuleLoader__.load({
 .sb-dot.sb-breathe-plain{animation:sb-breathe-plain 2.2s ease-in-out infinite}
 @keyframes sb-breathe{0%,100%{filter:brightness(1);box-shadow:0 0 0 0 var(--sb-running-glow)}50%{filter:brightness(1.9) saturate(.85);box-shadow:0 0 0 7px var(--sb-running-glow0)}}
 @keyframes sb-breathe-plain{0%,100%{box-shadow:0 0 0 0 var(--sb-running-glow)}50%{box-shadow:0 0 0 7px var(--sb-running-glow0)}}
-.sb-preview{margin:3px 0 0 17px;font-size:11px;line-height:1.45;color:var(--dsw-alias-label-secondary);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-all;white-space:pre-line}
+.sb-preview{margin:3px 0 0 17px;font-size:11px;line-height:1.45;color:var(--dsw-alias-label-secondary);height:calc(3 * 1.45em);overflow-y:hidden;overflow-x:hidden;word-break:break-all;white-space:pre-line}
 .sb-preview-live{color:#7aa9ff}
 .sb-row-meta{display:inline-flex;align-items:center;gap:3px}
 .sb-ring{width:12px;height:12px;transform:rotate(-90deg);flex:none}
@@ -198,6 +198,16 @@ window.__ModuleLoader__.load({
 .sb-theme-item input[type=number]{width:44px;font-size:11px;padding:1px 4px;border:1px solid var(--dsw-alias-border-l2);border-radius:4px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 .sb-theme-item input[type=checkbox]{accent-color:var(--sb-running);margin:0;cursor:pointer}
 `;
+
+    // 3-line tail window: newest preview text stays visible while streaming.
+    const PreviewTail = ({ text, className }) => {
+      const ref = React.useRef(null);
+      React.useLayoutEffect(() => {
+        const el = ref.current;
+        if (el) el.scrollTop = el.scrollHeight;
+      }, [text]);
+      return h('div', { ref, className, title: text }, text);
+    };
 
     function BoardRow({ row, t, onDismiss, onOpen, active, theme }) {
       const duration = fmtDuration(row.taskStartedAt, row.taskEndedAt);
@@ -234,8 +244,10 @@ window.__ModuleLoader__.load({
             : null,
         ),
         row.preview || row.status === 'running' || row.status === 'working'
-          ? h('div', { className: 'sb-preview' + (row.status === 'running' ? ' sb-preview-live' : ''), title: row.preview || undefined },
-              row.preview || t('Thinking'))
+          ? h(PreviewTail, {
+              className: 'sb-preview' + (row.status === 'running' ? ' sb-preview-live' : ''),
+              text: row.preview || t('Thinking'),
+            })
           : null,
         (row.workspace || row.cwd || row.updatedAt || duration)
           ? h('div', { className: 'sb-row-sub' },

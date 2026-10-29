@@ -44,15 +44,10 @@ const blocksText = content => Array.isArray(content)
     : '').filter(Boolean).join(' ')
   : '';
 
-// Last few non-empty reasoning paragraphs for the multi-line thinking preview.
-const reasoningLines = (value, max) => {
-  const paragraphs = String(value ?? '').split(/\r?\n[\t ]*\r?\n/);
-  const lines = [];
-  for (let i = paragraphs.length - 1; i >= 0 && lines.length < max; i--) {
-    const text = paragraphs[i].replaceAll('**', '').replace(/\s+/g, ' ').trim();
-    if (text) lines.unshift(text.slice(0, 200));
-  }
-  return lines;
+// Tail window: strip emphasis markers, keep line breaks, cap to the newest chars.
+const tailText = (value, cap) => {
+  const text = String(value ?? '').replaceAll('**', '').replace(/\r/g, '').trim();
+  return text ? text.slice(-cap) : '';
 };
 
 // Text-only content of an assistant message: the answer/summary, reasoning excluded.
@@ -518,12 +513,11 @@ export function apply(ctx) {
 
       const act = activity.get(row.id);
       const u = usageOf(row.id);
-      // Multi-line preview: last thinking paragraphs, then answer/summary (or tool) tail.
-      const lines = reasoningLines(reasoning.get(row.id)?.text, 3);
+      // Tail window: the newest thinking/answer stays visible as it streams.
+      const parts = [tailText(reasoning.get(row.id)?.text, 700)];
       const answer = answers.get(row.id)?.text;
-      if (answer) lines.push(answer.slice(0, 200));
-      else if (act?.kind === 'tool') lines.push(act.text);
-      if (lines.length > 3) lines.splice(0, lines.length - 3);
+      if (answer) parts.push(tailText(answer, 700));
+      else if (act?.kind === 'tool') parts.push(act.text);
       out.push({
         id: row.id,
         title: row.title,
@@ -533,7 +527,7 @@ export function apply(ctx) {
         status,
         detail: status === 'blocked' ? (blockedEntry?.detail ?? '')
           : status === 'failed' ? (errors.get(row.id)?.message ?? '') : '',
-        preview: status === 'running' || status === 'blocked' ? (lines.join('\n') || act?.text || '')
+        preview: status === 'running' || status === 'blocked' ? (parts.filter(Boolean).join('\n') || act?.text || '')
           : status === 'working' ? `后台任务: ${bgJobs.join('、')}` : '',
         previewKind: act?.kind ?? '',
         tokens: u?.tokens ?? null,
