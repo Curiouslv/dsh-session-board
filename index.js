@@ -50,6 +50,15 @@ const tailText = (value, cap) => {
   return text ? text.slice(-cap) : '';
 };
 
+// Newest stream wins; tool/user activity shows only while it is the latest progress.
+const previewParts = (think, answer, act) => {
+  const stream = (think?.at ?? 0) >= (answer?.at ?? 0) ? think : answer;
+  const parts = [];
+  if (stream?.text) parts.push(tailText(stream.text, 700));
+  if (act && act.kind !== 'assistant' && act.at > (stream?.at ?? 0)) parts.push(act.text);
+  return parts.filter(Boolean);
+};
+
 // Text-only content of an assistant message: the answer/summary, reasoning excluded.
 const answerText = content => Array.isArray(content)
   ? content.map(b => b?.type === 'text' ? String(b.text ?? '') : '').filter(Boolean).join(' ').replace(/\s+/g, ' ').trim()
@@ -178,6 +187,11 @@ export function apply(ctx) {
         : safe(() => JSON.stringify(event.data?.arguments ?? ''), '');
       return { kind: 'tool', text: `${String(event.data?.name ?? 'tool')} ${args}` };
     }
+    if (event?.type === 'tool/result') {
+      const msg = event.data?.message;
+      const text = blocksText(msg?.content);
+      return { kind: 'tool', text: `${msg?.isError ? '❌' : '✅'} ${text || '工具完成'}` };
+    }
     return null;
   }
 
@@ -189,7 +203,7 @@ export function apply(ctx) {
     }
     if (event?.type === 'assistant/message') {
       const answer = answerText(event.data?.message?.content);
-      if (answer) answers.set(id, { key: '', text: answer });
+      if (answer) answers.set(id, { key: '', text: answer, at: Date.now() });
     }
     if (event?.type === 'user/message') {
       taskTimes.set(id, { startedAt: Date.now(), endedAt: null, ran: false });
@@ -246,7 +260,7 @@ export function apply(ctx) {
     const key = String(frame.attemptId ?? '');
     const previous = store.get(String(id));
     const text = (previous?.key === key ? previous.text : '') + String(chunk.text);
-    store.set(String(id), { key, text });
+    store.set(String(id), { key, text, at: Date.now() });
   }
 
   ctx.effect(() => ctx.on('agent/assistant-stream', payload => {
@@ -513,11 +527,7 @@ export function apply(ctx) {
 
       const act = activity.get(row.id);
       const u = usageOf(row.id);
-      // Tail window: the newest thinking/answer stays visible as it streams.
-      const parts = [tailText(reasoning.get(row.id)?.text, 700)];
-      const answer = answers.get(row.id)?.text;
-      if (answer) parts.push(tailText(answer, 700));
-      else if (act?.kind === 'tool') parts.push(act.text);
+      const parts = previewParts(reasoning.get(row.id), answers.get(row.id), act);
       out.push({
         id: row.id,
         title: row.title,
@@ -527,7 +537,7 @@ export function apply(ctx) {
         status,
         detail: status === 'blocked' ? (blockedEntry?.detail ?? '')
           : status === 'failed' ? (errors.get(row.id)?.message ?? '') : '',
-        preview: status === 'running' || status === 'blocked' ? (parts.filter(Boolean).join('\n') || act?.text || '')
+        preview: status === 'running' || status === 'blocked' ? (parts.join('\n') || act?.text || '')
           : status === 'working' ? `后台任务: ${bgJobs.join('、')}` : '',
         previewKind: act?.kind ?? '',
         tokens: u?.tokens ?? null,

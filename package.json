@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-board",
-  "version": "1.16.8",
+  "version": "1.16.9",
   "description": "DSH Desktop 会话看板：悬浮球展示所有工作区的活跃会话，实时思考预览、上下文用量圆环、点击跳转会话、近5小时请求/token 统计",
   "license": "MIT",
   "repository": "git+https://github.com/Curiouslv/dsh-session-board.git",
