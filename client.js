@@ -189,7 +189,7 @@ window.__ModuleLoader__.load({
 .sb-dot.sb-breathe-plain{animation:sb-breathe-plain 2.2s ease-in-out infinite}
 @keyframes sb-breathe{0%,100%{filter:brightness(1);box-shadow:0 0 0 0 var(--sb-running-glow)}50%{filter:brightness(1.9) saturate(.85);box-shadow:0 0 0 7px var(--sb-running-glow0)}}
 @keyframes sb-breathe-plain{0%,100%{box-shadow:0 0 0 0 var(--sb-running-glow)}50%{box-shadow:0 0 0 7px var(--sb-running-glow0)}}
-.sb-preview{margin:3px 0 0 17px;font-size:11px;line-height:1.45;color:var(--dsw-alias-label-secondary);height:calc(3 * 1.45em);overflow-y:hidden;overflow-x:hidden;word-break:break-all;white-space:pre-line}
+.sb-preview{margin:3px 0 0 17px;font-size:11px;line-height:1.45;color:var(--dsw-alias-label-secondary);height:calc(3 * 1.45em);min-height:calc(3 * 1.45em);max-height:50vh;resize:vertical;overflow-y:hidden;overflow-x:hidden;word-break:break-all;white-space:pre-line}
 .sb-preview-live{color:#7aa9ff}
 .sb-row-meta{display:inline-flex;align-items:center;gap:3px}
 .sb-ring{width:12px;height:12px;transform:rotate(-90deg);flex:none}
@@ -214,7 +214,7 @@ window.__ModuleLoader__.load({
         const el = ref.current;
         if (el) el.scrollTop = el.scrollHeight;
       }, [text]);
-      return h('div', { ref, className, title: text }, text);
+      return h('div', { ref, className, title: text, onClick: e => e.stopPropagation() }, text);
     };
 
     function BoardRow({ row, t, onDismiss, onOpen, active, theme }) {

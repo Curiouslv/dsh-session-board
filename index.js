@@ -528,10 +528,17 @@ export function apply(ctx) {
         else if (timing.ran && timing.endedAt == null) timing.endedAt = now;
       }
 
-      const updatedAt = row.updatedAt ?? (status !== 'idle' ? now : null);
+      const act = activity.get(row.id);
+      const updatedAt = latestTime(
+        row.updatedAt,
+        act?.at,
+        timing?.startedAt,
+        timing?.endedAt,
+        reasoning.get(row.id)?.at,
+        answers.get(row.id)?.at,
+      ) ?? (status !== 'idle' ? now : null);
       if (status === 'idle' && !(updatedAt && now - updatedAt < RECENT_MS)) continue;
 
-      const act = activity.get(row.id);
       const u = usageOf(row.id);
       const parts = previewParts(reasoning.get(row.id), answers.get(row.id), act);
       out.push({
@@ -551,13 +558,7 @@ export function apply(ctx) {
         spent: cumulative.get(row.id) ?? null,
         provider: u?.provider ?? '',
         model: u?.model ?? '',
-        updatedAt: latestTime(
-          updatedAt,
-          act?.at,
-          timing?.endedAt,
-          reasoning.get(row.id)?.at,
-          answers.get(row.id)?.at,
-        ),
+        updatedAt,
         taskStartedAt: timing?.startedAt ?? null,
         taskEndedAt: timing?.endedAt ?? null,
       });
