@@ -94,7 +94,7 @@ dsh plugin --profile desktop add https://github.com/Curiouslv/dsh-session-board
 
 - **上下文窗口表**：`index.js` 中的 `MODEL_CONTEXT` 按模型名列出上下文大小（默认覆盖常见模型）。你的模型不在表里时，圆环百分比不显示、token 数照常——欢迎按需补充
 - **用量口径**：按「每次模型调用」本地统计。与厂商控制台的统计口径如有差异，以控制台为准
-- **流式粒度**：思考预览来自 Host 原生 `agent/assistant-stream` 流，看板按 1.2s / 2.5s 轮询刷新；新的模型尝试开始会清除上一段思考
+- **流式粒度**：思考预览来自 Host 原生 `agent/assistant-stream` 流；面板打开且有会话活动时以 0.3s 轮询刷新（空闲时 1.2s，面板收起 2.5s），无法做到与主界面逐帧同步；新的模型尝试开始会清除上一段思考
 - 火山用量徽标匹配 provider id 含 `volc` 的会话，其他厂商不受影响
 
 ## License

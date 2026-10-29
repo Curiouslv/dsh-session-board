@@ -9,6 +9,7 @@ window.__ModuleLoader__.load({
     const ROUTE = 'api/session-board';
     const POLL_MS = 2500;
     const LIVE_POLL_MS = 1200;
+    const ACTIVE_POLL_MS = 300;
     const THEME_KEY = 'sb-theme';
     const DEFAULT_THEME = {
       running: '#4c8dff', working: '#f5b73e', blocked: '#f5b73e',
@@ -254,6 +255,7 @@ window.__ModuleLoader__.load({
       const [open, setOpen] = React.useState(false);
       const openRef = React.useRef(false);
       openRef.current = open;
+      const activeRef = React.useRef(false);
       const [data, setData] = React.useState({ rows: [], hidden: 0, providers: [], error: '' });
       const [dismissed, setDismissed] = React.useState(() => new Set());
       const [pos, setPos] = React.useState(loadPos);
@@ -365,6 +367,8 @@ window.__ModuleLoader__.load({
                   (json.v != null && json.v < 3) ||
                   (json.v === undefined && volcBadge != null && volcBadge.calls12 === undefined)
                 );
+                activeRef.current = (Array.isArray(json?.rows) ? json.rows : [])
+                  .some(r => r?.status && r.status !== 'idle');
                 setData(json?.ok && !errMsg
                   ? {
                       rows: Array.isArray(json.rows) ? json.rows : [],
@@ -383,7 +387,7 @@ window.__ModuleLoader__.load({
               if (!stop) setData({ rows: [], hidden: 0, providers: [], error: String(error?.message ?? error) });
             }
           }
-          if (!stop) timer = setTimeout(tick, openRef.current ? LIVE_POLL_MS : POLL_MS);
+          if (!stop) timer = setTimeout(tick, openRef.current ? (activeRef.current ? ACTIVE_POLL_MS : LIVE_POLL_MS) : POLL_MS);
         };
         tick();
         return () => { stop = true; if (timer) clearTimeout(timer); };
