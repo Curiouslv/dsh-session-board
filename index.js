@@ -595,7 +595,13 @@ export function apply(ctx) {
     // sorts by last activity, so a just-finished task still ranks above
     // stale failed/working rows.
     const liveFirst = r => r.status === 'running' || r.status === 'blocked' ? 0 : 1;
-    out.sort((a, b) => liveFirst(a) - liveFirst(b) || (b.sortAt ?? 0) - (a.sortAt ?? 0));
+    // Live tier: order by task start time, so parallel streaming tasks keep
+    // their positions instead of reshuffling on every progress tick.
+    // Non-live tier: last known activity (completion) — recent finishers stay high.
+    out.sort((a, b) =>
+      liveFirst(a) - liveFirst(b)
+      || (b.taskStartedAt ?? b.sortAt ?? 0) - (a.taskStartedAt ?? a.sortAt ?? 0)
+      || (b.sortAt ?? 0) - (a.sortAt ?? 0));
     // Backfill cumulative counters (active rows first, one log read per session).
     for (const row of out) if (!cumulative.has(row.id)) queueCumulative(row.id);
     return { v: 3, rows: out.slice(0, MAX_ROWS), hidden: Math.max(0, out.length - MAX_ROWS), providers };
