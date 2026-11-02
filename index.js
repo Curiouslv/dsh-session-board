@@ -408,16 +408,27 @@ export function apply(ctx) {
     hrCache.at = Date.now();
     try {
       const raw = readFileSync(HEADROOM_SAVINGS_FILE, 'utf8');
-      let saved = 0, count = 0;
+      let saved = 0, count = 0, last = null;
       for (const line of raw.split('\n')) {
         if (!line.trim()) continue;
         try {
           const event = JSON.parse(line);
           saved += Number(event?.saved) || 0;
           count += 1;
+          if (Number(event?.before) > 0) last = event;
         } catch {}
       }
-      hrCache.stats = saved > 0 || count > 0 ? { kind: 'headroom', saved: Math.round(saved), count } : null;
+      const lastPct = last
+        ? Math.round((Number(last.before) - Number(last.after)) / Number(last.before) * 100)
+        : null;
+      hrCache.stats = count > 0 ? {
+        kind: 'headroom',
+        saved: Math.round(saved),
+        count,
+        lastPct,
+        lastBefore: last ? Math.round(Number(last.before)) : null,
+        lastAfter: last ? Math.round(Number(last.after)) : null,
+      } : null;
     } catch {
       hrCache.stats = null;
     }
