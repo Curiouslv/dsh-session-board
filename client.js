@@ -270,12 +270,16 @@ window.__ModuleLoader__.load({
               text: row.preview || t('Thinking'),
             })
           : null,
-        (row.workspace || row.cwd || row.updatedAt || duration)
-          ? h('div', { className: 'sb-row-sub' },
+        (row.workspace || row.cwd || row.updatedAt || duration || row.hr)
+          ? h('div', {
+              className: 'sb-row-sub',
+              title: row.hr ? `本次任务已压缩 ${row.hr.count} 次，节省 ${fmtTokens(row.hr.saved)} tokens` : undefined,
+            },
             [
               row.workspace || cwdTail(row.cwd),
               fmtAgo(row.updatedAt, t),
               duration ? `⏱️ ${duration}` : '',
+              row.hr ? `🗜️ ${row.hr.pct}%` : '',
             ].filter(Boolean).join(' · '))
           : null,
         row.detail

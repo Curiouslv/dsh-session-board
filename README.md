@@ -16,7 +16,7 @@ DSH Desktop（DeepSeek Harness）的**会话看板**插件：右下角一颗可�
 - **当前会话高亮**：面板用蓝色左条标记主界面正在查看的会话，切换实时跟随
 - **上下文用量**：每行灰色圆环 + 上下文占比 + 累计 token 消耗（含缓存读写）
 - **近 12 小时 / 30 天用量统计**：🕒 近12h调用次数 · 📅 近30天调用次数（火山方舟 Coding Plan）
-- **Headroom 压缩徽标**（可选）：安装 [Headroom](https://github.com/headroomlabs-ai/headroom) MCP 插件后，面板头部显示 `🗜️ 最近一次压缩的节省占比`（如 `🗜️ 99%`，悬停含压缩前后 tokens 与累计节省 / 次数）；未安装时自动隐藏。压缩事件不带会话 ID，故为全局统计且累计值永不清零
+- **Headroom 压缩徽标**（可选）：安装 [Headroom](https://github.com/headroomlabs-ai/headroom) MCP 插件后，面板头部显示 `🗜️ 最近一次压缩的节省占比`（如 `🗜️ 99%`，悬停含压缩前后 tokens 与累计节省 / 次数）；每个任务行尾也显示 `🗜️ N%` 标记本次任务是否发生压缩（按任务时间窗归因，并行任务同时压缩时无法区分归属）；未安装时自动隐藏。压缩仅在模型调用 `headroom_compress` 时发生，累计值永不清零
 - **DeepSeek 余额**（可选）：安装 [dsh-usage](https://github.com/) 插件并加入 profile `bundles` 后自动显示 API 余额（由 dsh-usage 每 60s 自动刷新快照）
 - **主题自定义**：⚙ 面板自定义五种状态颜色、悬浮球待机色与直径，即改即生效
 - **可拖拽悬浮球**：位置持久化；🧹 一键清理空闲与失败状态

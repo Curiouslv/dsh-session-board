@@ -409,13 +409,17 @@ export function apply(ctx) {
     try {
       const raw = readFileSync(HEADROOM_SAVINGS_FILE, 'utf8');
       let saved = 0, count = 0, last = null;
+      const events = [];
       for (const line of raw.split('\n')) {
         if (!line.trim()) continue;
         try {
           const event = JSON.parse(line);
           saved += Number(event?.saved) || 0;
           count += 1;
-          if (Number(event?.before) > 0) last = event;
+          if (Number(event?.before) > 0) {
+            last = event;
+            events.push({ ts: Date.parse(event?.ts ?? '') || 0, before: Number(event.before), after: Number(event.after), saved: Number(event.saved) || 0 });
+          }
         } catch {}
       }
       const lastPct = last
@@ -428,6 +432,7 @@ export function apply(ctx) {
         lastPct,
         lastBefore: last ? Math.round(Number(last.before)) : null,
         lastAfter: last ? Math.round(Number(last.after)) : null,
+        events,
       } : null;
     } catch {
       hrCache.stats = null;
@@ -568,6 +573,23 @@ export function apply(ctx) {
         else if (timing.ran && timing.endedAt == null) timing.endedAt = now;
       }
 
+      // Headroom compressions inside this task's window (events carry no
+      // session id, so attribution is by timestamp — see README limitations).
+      let hr = null;
+      const hrEvents = headroomStats()?.events ?? [];
+      if (timing?.startedAt && hrEvents.length > 0) {
+        const end = timing.endedAt ?? now;
+        const inTask = hrEvents.filter(e => e.ts >= timing.startedAt && e.ts <= end);
+        if (inTask.length > 0) {
+          const lastIn = inTask[inTask.length - 1];
+          hr = {
+            count: inTask.length,
+            saved: Math.round(inTask.reduce((sum, e) => sum + e.saved, 0)),
+            pct: Math.round((lastIn.before - lastIn.after) / lastIn.before * 100),
+          };
+        }
+      }
+
       const act = activity.get(row.id);
       const activityAt = latestTime(
         row.updatedAt,
@@ -606,6 +628,7 @@ export function apply(ctx) {
         sortAt,
         taskStartedAt: timing?.startedAt ?? null,
         taskEndedAt: timing?.endedAt ?? null,
+        hr,
       });
     }
 
