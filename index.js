@@ -212,7 +212,10 @@ export function apply(ctx) {
       const answer = answerText(event.data?.message?.content);
       if (answer) answers.set(id, { key: '', text: answer, at: Date.now() });
     }
-    if (event?.type === 'user/message') {
+    if (event?.type === 'user/message' && event.data?.source?.kind !== 'runtime-context') {
+      // Runtime-context injections are appended as user/message at the start of
+      // every turn attempt — they are not new human prompts and must not reset
+      // the task timer.
       taskTimes.set(id, { startedAt: Date.now(), endedAt: null, ran: false });
     }
     if (event?.type === 'request/header') {
@@ -569,8 +572,12 @@ export function apply(ctx) {
         taskTimes.set(row.id, timing);
       }
       if (timing) {
-        if (running) timing.ran = true;
-        else if (timing.ran && timing.endedAt == null) timing.endedAt = now;
+        if (running) {
+          timing.ran = true;
+          timing.endedAt = null; // resumed after a pause (e.g. sub-agent wait) — keep counting
+        } else if (timing.ran && timing.endedAt == null) {
+          timing.endedAt = now;
+        }
       }
 
       // Headroom compressions inside this task's window (events carry no
