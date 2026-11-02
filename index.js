@@ -34,6 +34,7 @@ const USAGE_DIR = join(homedir(), '.dsh', 'dsh-usage');
 const SNAPSHOTS_FILE = join(USAGE_DIR, 'provider-snapshots.json');
 const TWELVE_H_MS = 12 * 60 * 60 * 1000;
 const THIRTY_D_MS = 30 * 24 * 60 * 60 * 1000;
+const HEADROOM_SAVINGS_FILE = join(homedir(), '.headroom', 'savings_events.jsonl');
 
 // Last path segment of a cwd (also the workspace name fallback).
 const cwdTail = p => String(p ?? '').split(/[\\/]/).filter(Boolean).pop() ?? '';
@@ -398,6 +399,31 @@ export function apply(ctx) {
     return null;
   }
 
+  // Headroom (optional MCP plugin) compression savings, from its JSONL event
+  // log. A missing file means Headroom is not installed (or never compressed)
+  // — the badge simply stays hidden.
+  let hrCache = { at: 0, stats: null };
+  function headroomStats() {
+    if (Date.now() - hrCache.at < 5000) return hrCache.stats;
+    hrCache.at = Date.now();
+    try {
+      const raw = readFileSync(HEADROOM_SAVINGS_FILE, 'utf8');
+      let saved = 0, count = 0;
+      for (const line of raw.split('\n')) {
+        if (!line.trim()) continue;
+        try {
+          const event = JSON.parse(line);
+          saved += Number(event?.saved) || 0;
+          count += 1;
+        } catch {}
+      }
+      hrCache.stats = saved > 0 || count > 0 ? { kind: 'headroom', saved: Math.round(saved), count } : null;
+    } catch {
+      hrCache.stats = null;
+    }
+    return hrCache.stats;
+  }
+
   function usageOf(sessionId) {
     return safe(() => {
       const s = ctx.sessions?.get?.(sessionId);
@@ -590,6 +616,8 @@ export function apply(ctx) {
       const b = providerBadge(p);
       if (b) providers.push(b);
     }
+    const headroom = headroomStats();
+    if (headroom) providers.push(headroom);
 
     // Live sessions (running / blocked) stay pinned on top; everything else
     // sorts by last activity, so a just-finished task still ranks above

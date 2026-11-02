@@ -134,7 +134,8 @@ window.__ModuleLoader__.load({
 
     const badgeTitle = q => q?.kind === 'volc'
       ? `本地统计（按模型调用）\n近12小时：${q.calls12 ?? 0} 次 · ${fmtTokens(q.tokens12 ?? 0)} tokens\n近30天：${q.calls30 ?? 0} 次 · ${fmtTokens(q.tokens30 ?? 0)} tokens`
-      : q?.kind === 'deepseek' ? 'DeepSeek API 余额（由 dsh-usage 插件刷新）' : '';
+      : q?.kind === 'deepseek' ? 'DeepSeek API 余额（由 dsh-usage 插件刷新）'
+      : q?.kind === 'headroom' ? `Headroom 上下文压缩（本地）\n累计节省 ${fmtTokens(q.saved ?? 0)} tokens · 压缩 ${q.count ?? 0} 次` : '';
 
     const postJSON = (route, body) => fetch(route, {
       method: 'POST',
@@ -581,7 +582,9 @@ window.__ModuleLoader__.load({
                         h('span', { className: 'sb-sep' }, '·'),
                         `📅 ${q.calls30 ?? 0}`,
                       ]
-                    : [`💰¥${q.balance}`],
+                    : q.kind === 'headroom'
+                      ? [`🗜️ ${fmtTokens(q.saved ?? 0)}`]
+                      : [`💰¥${q.balance}`],
                 )),
                 h('button', { className: 'sb-icon', onClick: clearIdle, title: t('Clear idle') }, '🧹'),
                 h('button', {
